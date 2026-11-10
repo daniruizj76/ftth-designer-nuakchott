@@ -1,942 +1,2401 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="h-full bg-slate-950 text-slate-100">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diseñador FTTH OSP Nuakchott - PMO Studio</title>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Leaflet Draw CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visor y Generador Geodésico de Postería y Trazados FTTH - PMO Nuakchot</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- JSZip for KMZ extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
     
-    <style>
-        #map { height: calc(100vh - 64px); width: 100%; }
-        .cto-icon-green {
-            background-color: #aaff00;
-            border: 2px solid #000;
-            border-radius: 50%;
-            box-shadow: 0 0 6px rgba(0,0,0,0.6);
-        }
-        .pole-icon-brown {
-            background-color: #8b4513;
-            border: 1.5px solid #fff;
-            border-radius: 50%;
-            box-shadow: 0 0 4px rgba(0,0,0,0.5);
-            color: #fff;
-            font-size: 9px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .ce-icon-amber {
-            background-color: #f59e0b;
-            border: 2px solid #000;
-            border-radius: 4px;
-            box-shadow: 0 0 6px rgba(0,0,0,0.8);
-            color: #000;
-            font-weight: bold;
-            font-size: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-    </style>
+    /* Leaflet Dark Popups */
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+      background-color: #0f172a !important;
+      color: #f8fafc !important;
+      border: 1px solid #334155;
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+    }
+    .leaflet-popup-content { margin: 12px 14px; }
+
+    /* Cable Tooltips */
+    .cable-tooltip-ce-cto, .cable-tooltip-cto-cto {
+      background-color: #020617 !important;
+      color: #ff4d4d !important;
+      border: 1.5px solid #ff0000 !important;
+      font-weight: 700;
+      font-size: 11px;
+      font-family: monospace;
+      padding: 3px 8px;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.7);
+      opacity: 0.95 !important;
+    }
+    .cable-tooltip-ce-cto::before, .cable-tooltip-cto-cto::before { border-top-color: #ff0000 !important; }
+
+    /* Animations */
+    @keyframes toast-in {
+      from { transform: translateY(-15px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-toast { animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    .pole-svg-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      50% { transform: scale(1.4); opacity: 0.2; }
+      100% { transform: scale(0.85); opacity: 0.9; }
+    }
+    .pulse-origin-ring {
+      animation: pulse-ring 2s infinite cubic-bezier(0.45, 0, 0.55, 1);
+      transform-origin: center;
+    }
+  </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans overflow-hidden">
+<body class="h-full flex flex-col font-sans overflow-hidden bg-slate-950 text-slate-100 select-none">
 
-    <!-- Header / Navbar -->
-    <header class="h-16 bg-slate-800 border-b border-slate-700 px-4 flex items-center justify-between shadow-md">
-        <div class="flex items-center space-x-3">
-            <i class="fa-solid fa-network-wired text-emerald-400 text-2xl"></i>
+  <!-- HEADER BAR -->
+  <header class="bg-slate-900 border-b border-slate-800 px-5 py-2.5 flex items-center justify-between shrink-0 shadow-xl z-30">
+    <div class="flex items-center space-x-3">
+      <div class="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400">
+        <i data-lucide="tower-control" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-slate-100 tracking-wide flex items-center gap-2">
+          OFICINA TÉCNICA FTTH <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">PMO Nuakchot</span>
+        </h1>
+        <p class="text-[11px] text-slate-400">Procesamiento Completo de CE y Última CTO | Capas KML Estrictas: CTOS Y CE, CABLEADO y POSTES</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2.5">
+      <button id="btn-open-num-modal" class="text-xs bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-amber-400 font-medium px-3 py-1.5 rounded-lg border border-amber-500/30 flex items-center gap-1.5 transition shadow-sm">
+        <i data-lucide="hash" class="w-4 h-4"></i>
+        <span>Numeración Inicial Rápida</span>
+      </button>
+
+      <button id="btn-load-sample" class="text-xs bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg border border-amber-400 flex items-center gap-2 transition shadow-lg shadow-amber-500/10">
+        <i data-lucide="map-pin" class="w-4 h-4 text-slate-950"></i>
+        <span>Cargar Trazado Tevragh Zeina</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN LAYOUT WRAPPER -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- SIDEBAR PANEL -->
+    <aside id="sidebar" class="w-96 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto z-20 shadow-2xl transition-all duration-300">
+      
+      <!-- Notification Toast Container -->
+      <div id="toast-container" class="p-3 hidden"></div>
+
+      <!-- SECTION 1: UPLOAD AREA -->
+      <div class="p-4 border-b border-slate-800/80 space-y-3">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+          <i data-lucide="file-up" class="w-4 h-4 text-amber-400"></i> Archivo KMZ / KML de Cables, CEs y CTOs
+        </h2>
+        
+        <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-amber-500/70 rounded-xl p-4 text-center cursor-pointer transition bg-slate-950/60 hover:bg-slate-950 group">
+          <input type="file" id="file-input" accept=".kmz,.kml,.zip" class="hidden" />
+          <i data-lucide="upload-cloud" class="w-7 h-7 mx-auto text-slate-400 group-hover:text-amber-400 transition mb-1.5"></i>
+          <p class="text-xs font-medium text-slate-200">Arrastra tu trazado <span class="text-amber-400 font-semibold">.KMZ</span> o <span class="text-amber-400 font-semibold">.KML</span></p>
+          <p class="text-[10px] text-slate-400 mt-1">Detecta CE 001, todas las CTOs intermedias y la CTO FINAL</p>
+        </div>
+      </div>
+
+      <!-- SECTION 2: CONFIGURATION CONTROLS -->
+      <div class="p-4 border-b border-slate-800/80 space-y-3.5">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+          <i data-lucide="sliders" class="w-4 h-4 text-amber-400"></i> Parámetros de Red & Correlación
+        </h2>
+
+        <!-- Folder / Project Name -->
+        <div>
+          <label class="block text-[11px] font-medium text-slate-300 mb-1">Nombre de Carpeta KML / Proyecto</label>
+          <input type="text" id="param-folder-name" value="CL 02" placeholder="Ej. CL 02, SECTOR_01" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono transition">
+        </div>
+
+        <!-- Target Span -->
+        <div>
+          <div class="flex justify-between items-center text-xs mb-1">
+            <label class="text-slate-300 font-medium">Vano Objetivo entre Postes</label>
+            <span id="target-span-val" class="font-mono text-amber-400 font-bold">40 m</span>
+          </div>
+          <input type="range" id="param-target-span" min="20" max="70" value="40" step="1" 
+                 class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+        </div>
+
+        <!-- Minimum Span / Anti-Duplicate Threshold -->
+        <div>
+          <div class="flex justify-between items-center text-xs mb-1">
+            <label class="text-slate-300 font-medium">Distancia Mínima (Anti-Duplicados)</label>
+            <span id="min-span-val" class="font-mono text-amber-400 font-bold">15 m</span>
+          </div>
+          <input type="range" id="param-min-span" min="5" max="25" value="15" step="1" 
+                 class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+        </div>
+
+        <!-- Angle Threshold -->
+        <div>
+          <div class="flex justify-between items-center text-xs mb-1">
+            <label class="text-slate-300 font-medium">Sensibilidad de Vértice / Giro</label>
+            <span id="angle-val" class="font-mono text-amber-400 font-bold">5°</span>
+          </div>
+          <input type="range" id="param-angle" min="2" max="30" value="5" step="1" 
+                 class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+          <p class="text-[10px] text-slate-500 mt-0.5">Poste incondicional en todo giro &ge; a este ángulo.</p>
+        </div>
+
+        <!-- BLOCK A: POSTES -->
+        <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+          <span class="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+            <i data-lucide="tower-control" class="w-3.5 h-3.5"></i> a) Secuencia de Postes
+          </span>
+          <div class="grid grid-cols-2 gap-2">
             <div>
-                <h1 class="font-bold text-lg text-white leading-tight">Diseñador Automático FTTH - Nuakchott</h1>
-                <p class="text-xs text-slate-400">Estándar OSP por Aceras | 8 CTOs | Postes 8m | PMO Studio</p>
+              <label class="block text-[10px] font-medium text-slate-400 mb-0.5">Prefijo Poste</label>
+              <input type="text" id="param-pole-prefix" value="P-" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono">
             </div>
+            <div>
+              <label class="block text-[10px] font-medium text-slate-400 mb-0.5">N° Inicial Poste</label>
+              <input type="number" id="param-pole-start-num" value="1" min="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono">
+            </div>
+          </div>
         </div>
-        
-        <div class="flex items-center space-x-3">
-            <!-- Undo / Marcha Atrás Button -->
-            <button onclick="undoAction()" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center space-x-1 shadow transition">
-                <i class="fa-solid fa-rotate-left"></i>
-                <span>Marcha Atrás (Ctrl+Z)</span>
-            </button>
 
-            <!-- Satellite View Toggle -->
-            <button id="satelliteToggleBtn" onclick="toggleSatelliteView()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center space-x-1 shadow transition">
-                <i class="fa-solid fa-satellite"></i>
-                <span id="satBtnText">Vista Satélite</span>
-            </button>
+        <!-- BLOCK B: CABLES -->
+        <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+          <span class="text-[11px] font-bold text-cyan-400 flex items-center gap-1.5">
+            <i data-lucide="cable" class="w-3.5 h-3.5"></i> b) Secuencia y Atributos de Cable
+          </span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-medium text-slate-400 mb-0.5">Prefijo Cable</label>
+              <input type="text" id="param-cable-prefix" value="C-" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono">
+            </div>
+            <div>
+              <label class="block text-[10px] font-medium text-slate-400 mb-0.5">N° Inicial Cable</label>
+              <input type="number" id="param-cable-start-num" value="1" min="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono">
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <div>
+              <label class="block text-[10px] font-medium text-slate-400 mb-0.5">Capacidad FO</label>
+              <select id="param-cable-capacity" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                <option value="48 FO">48 FO (Alimentación)</option>
+                <option value="24 FO">24 FO (Distribución)</option>
+                <option value="16 FO">16 FO</option>
+                <option value="12 FO">12 FO</option>
+                <option value="8 FO">8 FO</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-medium text-slate-400 mb-0.5">Atenuación (dB/km)</label>
+              <input type="number" id="param-cable-attenuation" value="0.35" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono">
+            </div>
+          </div>
 
-            <!-- Export KML Button -->
-            <button onclick="exportDesignedKML()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center space-x-1 shadow transition">
-                <i class="fa-solid fa-download"></i>
-                <span>Exportar KML (CL 01)</span>
-            </button>
-
-            <!-- Audit PMO Button -->
-            <button onclick="openPmoAuditModal()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center space-x-1 border border-slate-600 transition">
-                <i class="fa-solid fa-clipboard-check text-emerald-400"></i>
-                <span>Informe PMO</span>
-            </button>
+          <div>
+            <label class="block text-[10px] font-medium text-slate-400 mb-0.5">Tipo Constructivo Cable</label>
+            <select id="param-cable-type" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+              <option value="ADSS Dieléctrico 80m">ADSS Dieléctrico (Span 80m)</option>
+              <option value="Dieléctrico Autosoportado">Dieléctrico Autosoportado Fig. 8</option>
+              <option value="Armado Anti-roedor">Armado Metálico Anti-roedor</option>
+            </select>
+          </div>
         </div>
-    </header>
 
-    <!-- Main Container -->
-    <div class="flex h-[calc(100vh-64px)]">
-        
-        <!-- Left Sidebar / Control Panel -->
-        <aside class="w-96 bg-slate-800 border-r border-slate-700 p-4 overflow-y-auto flex flex-col space-y-5">
-            
-            <!-- 1. KMZ / KML Upload Section -->
-            <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3 shadow-inner">
-                <h2 class="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center space-x-2">
-                    <i class="fa-solid fa-file-import"></i>
-                    <span>1. Cargar Perímetro KMZ / KML</span>
-                </h2>
-                <div id="dropZone" onclick="document.getElementById('fileInput').click()" class="border-2 border-dashed border-slate-600 hover:border-emerald-500 rounded-lg p-4 text-center cursor-pointer transition bg-slate-800/50">
-                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-400 mb-2"></i>
-                    <p class="text-xs text-slate-300 font-medium">Haz clic o arrastra tu archivo <span class="text-emerald-400 font-bold">.KMZ</span> o <span class="text-emerald-400 font-bold">.KML</span> aquí</p>
-                    <span class="text-[10px] text-slate-500">Detecta polígonos perimetrales automáticamente</span>
-                </div>
-                <input type="file" id="fileInput" accept=".kmz,.kml" class="hidden" onchange="handleFileSelect(event)">
+        <!-- BLOCK C: CTOS / NAPS -->
+        <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+          <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+            <i data-lucide="box" class="w-3.5 h-3.5"></i> c) Secuencia CTOs / NAPs
+          </span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-medium text-slate-400 mb-0.5">Prefijo CTO</label>
+              <input type="text" id="param-cto-prefix" value="CTO-" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono">
             </div>
-
-            <!-- 2. Numeración y Configuración FTTH -->
-            <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3 shadow-inner space-y-3">
-                <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center space-x-2">
-                    <i class="fa-solid fa-sliders"></i>
-                    <span>2. Criterios y Numeración FTTH</span>
-                </h2>
-                
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                        <label class="block text-slate-400 mb-1">Nº Cluster</label>
-                        <input type="text" id="clusterNumInput" value="1" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white font-mono text-center">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1">Nombre CE</label>
-                        <input type="text" id="ceNameInput" value="CE001" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white font-mono text-center">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1">Inicio CTO</label>
-                        <input type="number" id="ctoStartInput" value="1" min="1" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white font-mono text-center">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1">Inicio Cable</label>
-                        <input type="number" id="cableStartInput" value="100" min="1" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white font-mono text-center">
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-slate-400 mb-1">Inicio Poste (CE adelante)</label>
-                        <input type="number" id="poleStartInput" value="1" min="1" class="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-white font-mono text-center">
-                    </div>
-                </div>
-
-                <button onclick="applyCustomNumbering()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-1.5 rounded text-xs transition shadow">
-                    Aplicar Nombre CE y Numeración
-                </button>
+            <div>
+              <label class="block text-[10px] font-medium text-slate-400 mb-0.5">Inicio CTO</label>
+              <input type="number" id="param-cto-start-num" value="1" min="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono">
             </div>
+          </div>
+        </div>
 
-            <!-- 3. Edición Manual y Trazado -->
-            <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3 shadow-inner space-y-2">
-                <h2 class="text-sm font-bold text-indigo-400 uppercase tracking-wider flex items-center space-x-2">
-                    <i class="fa-solid fa-pen-ruler"></i>
-                    <span>3. Herramientas de Edición Manual</span>
-                </h2>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <button id="drawCableBtn" onclick="toggleCableDrawMode()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 py-1.5 px-2 rounded flex items-center justify-center space-x-1 border border-slate-600">
-                        <i class="fa-solid fa-route text-red-400"></i>
-                        <span id="drawCableBtnText">+ Trazar Cable</span>
-                    </button>
-                    <button onclick="clearAllCables()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 py-1.5 px-2 rounded flex items-center justify-center space-x-1 border border-slate-600">
-                        <i class="fa-solid fa-trash-can text-rose-400"></i>
-                        <span>Eliminar Cables</span>
-                    </button>
-                    <button onclick="addNewCtoManual()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 py-1.5 px-2 rounded flex items-center justify-center space-x-1 border border-slate-600">
-                        <i class="fa-solid fa-circle-plus text-emerald-400"></i>
-                        <span>+ CTO Manual</span>
-                    </button>
-                    <button onclick="recalculatePoles()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 py-1.5 px-2 rounded flex items-center justify-center space-x-1 border border-slate-600">
-                        <i class="fa-solid fa-arrows-spin text-amber-400"></i>
-                        <span>Recalcular Postes</span>
-                    </button>
-                </div>
+        <!-- Orientation and Reversal Button -->
+        <div>
+          <button id="btn-reverse-direction" class="w-full bg-slate-800 hover:bg-slate-750 active:bg-slate-700 text-amber-400 font-medium py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-2 border border-amber-500/40 shadow-sm transition">
+            <i data-lucide="arrow-left-right" class="w-4 h-4 text-amber-400"></i> 
+            <span id="reverse-btn-text">Invertir Sentido (P-001 / C-001)</span>
+          </button>
+          <p id="reverse-status-label" class="text-[10px] text-slate-400 mt-1 text-center font-mono">Estado: Sentido Directo (Normal)</p>
+        </div>
+
+        <!-- Color & Pole Type -->
+        <div class="grid grid-cols-2 gap-2.5 pt-0.5">
+          <div>
+            <label class="block text-[11px] font-medium text-slate-300 mb-1">Color Postes</label>
+            <div class="flex items-center gap-2 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+              <input type="color" id="param-pole-color" value="#8B4513" class="w-5 h-5 rounded cursor-pointer border-0 bg-transparent">
+              <span id="color-hex-label" class="text-xs font-mono text-slate-300">#8B4513</span>
             </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-slate-300 mb-1">Material Defecto</label>
+            <select id="param-pole-type" class="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500">
+              <option value="Madera Tratada 8m">Madera Tratada 8m</option>
+              <option value="Hormigón 9m / 400daN">Hormigón 9m / 400daN</option>
+              <option value="PRFV Composite 8m">PRFV Composite (Anticorrosión)</option>
+            </select>
+          </div>
+        </div>
 
-            <!-- 4. Resumen Métrico de Red -->
-            <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3 shadow-inner space-y-2 text-xs">
-                <h2 class="text-sm font-bold text-blue-400 uppercase tracking-wider flex items-center space-x-2">
-                    <i class="fa-solid fa-chart-pie"></i>
-                    <span>4. Muestreo de Planta (OSP)</span>
-                </h2>
-                <div class="flex justify-between border-b border-slate-700/60 pb-1">
-                    <span class="text-slate-400">Total CTOs Desplegadas:</span>
-                    <span id="statCtoCount" class="font-bold text-emerald-400">8 / 8</span>
-                </div>
-                <div class="flex justify-between border-b border-slate-700/60 pb-1">
-                    <span class="text-slate-400">Cable Feeder/Dist. 48 FO:</span>
-                    <span id="statCableLength" class="font-bold text-red-400">0 m</span>
-                </div>
-                <div class="flex justify-between border-b border-slate-700/60 pb-1">
-                    <span class="text-slate-400">Postes Madera 8m:</span>
-                    <span id="statPoleCount" class="font-bold text-amber-400">0 unidades</span>
-                </div>
-                <div class="flex justify-between border-b border-slate-700/60 pb-1">
-                    <span class="text-slate-400">Separación Máx. CTOs:</span>
-                    <span id="statMaxCtoDist" class="font-bold text-slate-200">0 m (≤ 200m)</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-400">Radio Cobertura Máx:</span>
-                    <span id="statMaxCoverage" class="font-bold text-emerald-400">100% (≤ 150m)</span>
-                </div>
+        <div>
+          <label class="block text-[11px] font-medium text-slate-300 mb-1">Coste Estimado por Poste ($ USD)</label>
+          <input type="number" id="param-pole-cost" value="180" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono">
+        </div>
+
+        <button id="btn-recalculate" class="w-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/10">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i> Recalcular Ubicación y Trazados
+        </button>
+      </div>
+
+      <!-- SECTION 3: KPI SUMMARY & EXPORTS -->
+      <div class="p-4 space-y-3 flex-1">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-amber-400"></i> Resumen OSP PMO Nuakchot
+        </h2>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <p class="text-[10px] text-slate-500 uppercase font-semibold">Longitud Cables</p>
+            <p id="kpi-cable-len" class="text-base font-bold text-slate-100 font-mono">0 m</p>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <p class="text-[10px] text-slate-500 uppercase font-semibold">Total Postes</p>
+            <p id="kpi-total-poles" class="text-base font-bold text-amber-400 font-mono">0</p>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <p class="text-[10px] text-slate-500 uppercase font-semibold">Cables CE➔CTO</p>
+            <p id="kpi-ce-cto-cables" class="text-base font-bold text-sky-400 font-mono">0</p>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <p class="text-[10px] text-slate-500 uppercase font-semibold">Total CTOs/NAPs</p>
+            <p id="kpi-total-ctos" class="text-base font-bold text-emerald-400 font-mono">0</p>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+          <div class="flex justify-between text-slate-300">
+            <span>Atenuación Máx. Tramo:</span>
+            <span id="kpi-max-attenuation" class="font-mono text-emerald-400 font-bold">0.00 dB</span>
+          </div>
+          <div class="flex justify-between text-slate-300">
+            <span>CAPEX Est. Postería:</span>
+            <span id="kpi-capex" class="font-mono text-slate-100 font-bold">$ 0</span>
+          </div>
+          <div class="flex justify-between text-slate-300">
+            <span>Postes con CE (Cabecera):</span>
+            <span id="kpi-ce-poles" class="font-mono text-purple-400 font-bold">0</span>
+          </div>
+          <div class="flex justify-between text-slate-300">
+            <span>Postes con CTO / NAP:</span>
+            <span id="kpi-cto-poles" class="font-mono text-cyan-400 font-bold">0</span>
+          </div>
+          <div class="flex justify-between text-slate-300">
+            <span>Postes Vértice / Esquina:</span>
+            <span id="kpi-corner-poles" class="font-mono text-amber-300 font-bold">0</span>
+          </div>
+        </div>
+
+        <div class="pt-2 space-y-2">
+          <button id="btn-export-kml" disabled class="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-100 font-medium py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-700 transition shadow-sm">
+            <i data-lucide="download" class="w-4 h-4 text-amber-400"></i> Descargar KML Procesado (3 Capas)
+          </button>
+          <div class="grid grid-cols-3 gap-1.5">
+            <button id="btn-export-poles-csv" disabled class="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-100 font-medium py-2 px-1.5 rounded-xl text-[10px] flex items-center justify-center gap-1 border border-slate-700 transition">
+              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-amber-400"></i> Postes CSV
+            </button>
+            <button id="btn-export-cables-csv" disabled class="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-100 font-medium py-2 px-1.5 rounded-xl text-[10px] flex items-center justify-center gap-1 border border-slate-700 transition">
+              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-cyan-400"></i> Cables CSV
+            </button>
+            <button id="btn-export-ctos-csv" disabled class="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-100 font-medium py-2 px-1.5 rounded-xl text-[10px] flex items-center justify-center gap-1 border border-slate-700 transition">
+              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-400"></i> CTOs y CE CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main class="flex-1 flex flex-col relative bg-slate-950 overflow-hidden">
+      
+      <!-- MAP CONTAINER -->
+      <div id="map" class="flex-1 w-full h-full z-0"></div>
+
+      <!-- MAP FLOATING TOOLBAR -->
+      <div class="absolute top-4 right-4 z-[1000] bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-800 shadow-2xl flex items-center gap-1.5">
+        <button id="btn-toggle-satellite" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 flex items-center gap-1.5 border border-slate-700 transition">
+          <i data-lucide="layers" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span id="satellite-btn-text">Vista Satélite</span>
+        </button>
+        <button id="btn-toggle-draw" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 flex items-center gap-1.5 border border-slate-700 transition">
+          <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span id="draw-btn-text">Dibujar Cable Manual</span>
+        </button>
+        <button id="btn-clear-map" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-rose-950/70 text-rose-300 flex items-center gap-1.5 border border-slate-700 hover:border-rose-800/50 transition">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          <span>Limpiar Mapa</span>
+        </button>
+      </div>
+
+      <!-- TABBED BOTTOM DATA TABLE (3 TABS) -->
+      <div class="h-64 bg-slate-900 border-t border-slate-800 flex flex-col z-10 shrink-0 shadow-2xl">
+        <div class="px-4 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
+          <div class="flex items-center gap-2">
+            <button id="tab-btn-poles" class="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 border border-amber-400 flex items-center gap-1.5 transition">
+              <i data-lucide="tower-control" class="w-3.5 h-3.5"></i> Postería Generada (<span id="pole-count-badge">0</span>)
+            </button>
+            <button id="tab-btn-cables" class="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 flex items-center gap-1.5 transition">
+              <i data-lucide="cable" class="w-3.5 h-3.5 text-cyan-400"></i> Trazados de Cable (<span id="cable-count-badge">0</span>)
+            </button>
+            <button id="tab-btn-ctos" class="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 flex items-center gap-1.5 transition">
+              <i data-lucide="box" class="w-3.5 h-3.5 text-emerald-400"></i> CTOs y CE (<span id="cto-count-badge">0</span>)
+            </button>
+          </div>
+          <span class="text-[10px] text-slate-400 font-mono">Detección de CE 001 e Inclusión de la Última CTO | Nomenclatura Estricta KML</span>
+        </div>
+
+        <!-- TAB 1: POLES -->
+        <div id="tab-content-poles" class="flex-1 overflow-y-auto p-2">
+          <table class="w-full text-left text-xs text-slate-300 border-collapse">
+            <thead class="sticky top-0 bg-slate-900 text-[10px] uppercase text-slate-400 font-bold border-b border-slate-800 z-10">
+              <tr>
+                <th class="p-2">ID Poste</th>
+                <th class="p-2">Rol / Función</th>
+                <th class="p-2">Coordenadas (Lat, Lng)</th>
+                <th class="p-2">Vano Ant. (m)</th>
+                <th class="p-2">Vano Sig. (m)</th>
+                <th class="p-2">Giro Vértice</th>
+                <th class="p-2 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="pole-table-body" class="divide-y divide-slate-800/40 font-mono text-[11px]">
+              <tr>
+                <td colspan="7" class="p-6 text-center text-slate-500 font-sans italic">
+                  No hay datos cargados. Arrastra tu archivo .KMZ o haz clic en "Cargar Trazado Tevragh Zeina".
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TAB 2: CABLES -->
+        <div id="tab-content-cables" class="flex-1 overflow-y-auto p-2 hidden">
+          <table class="w-full text-left text-xs text-slate-300 border-collapse">
+            <thead class="sticky top-0 bg-slate-900 text-[10px] uppercase text-slate-400 font-bold border-b border-slate-800 z-10">
+              <tr>
+                <th class="p-2">ID Cable</th>
+                <th class="p-2">Categoría Técnica</th>
+                <th class="p-2">Origen ➔ Destino</th>
+                <th class="p-2">Longitud (m)</th>
+                <th class="p-2">Capacidad FO</th>
+                <th class="p-2">Atenuación G.984 (dB)</th>
+                <th class="p-2 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="cable-table-body" class="divide-y divide-slate-800/40 font-mono text-[11px]">
+              <tr>
+                <td colspan="7" class="p-6 text-center text-slate-500 font-sans italic">
+                  No hay trazados de cable cargados.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TAB 3: CTOS Y CE -->
+        <div id="tab-content-ctos" class="flex-1 overflow-y-auto p-2 hidden">
+          <table class="w-full text-left text-xs text-slate-300 border-collapse">
+            <thead class="sticky top-0 bg-slate-900 text-[10px] uppercase text-slate-400 font-bold border-b border-slate-800 z-10">
+              <tr>
+                <th class="p-2">ID Elemento</th>
+                <th class="p-2">Tipo de Nodo</th>
+                <th class="p-2">Coordenadas (Lat, Lng)</th>
+                <th class="p-2">Poste Asignado</th>
+                <th class="p-2">Dist. a CE (m)</th>
+                <th class="p-2 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="cto-table-body" class="divide-y divide-slate-800/40 font-mono text-[11px]">
+              <tr>
+                <td colspan="6" class="p-6 text-center text-slate-500 font-sans italic">
+                  No hay datos de CEs ni CTOs cargados.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- MODAL DE CONFIGURACIÓN INICIAL RÁPIDA (3 BLOQUES: POSTES, CABLES, CTOS) -->
+  <div id="modal-numbering" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[2000] flex items-center justify-center hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-[420px] shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4 text-amber-400"></i> Configuración Inicial Rápida (OSP)
+        </h3>
+        <button id="btn-close-modal" class="text-slate-400 hover:text-slate-200">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <!-- BLOQUE A: POSTES -->
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+          <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+            <i data-lucide="tower-control" class="w-3.5 h-3.5"></i> a) Secuencia de Postes
+          </span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-400">Prefijo ID</label>
+              <input type="text" id="modal-pole-prefix" value="P-" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs font-mono">
             </div>
-
-            <!-- Footer info -->
-            <div class="mt-auto text-[10px] text-slate-500 text-center">
-                Nuakchott FTTH OSP Engine v4.5 • PMO Studio Nuakchott
+            <div>
+              <label class="block text-[10px] text-slate-400">Número Inicial</label>
+              <input type="number" id="modal-pole-start-num" value="1" min="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs font-mono">
             </div>
-        </aside>
+          </div>
+        </div>
 
-        <!-- Main Map Area -->
-        <main class="flex-1 relative">
-            <div id="map"></div>
-        </main>
+        <!-- BLOQUE B: CABLES -->
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+          <span class="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+            <i data-lucide="cable" class="w-3.5 h-3.5"></i> b) Secuencia y Atributos de Cable
+          </span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-400">Prefijo ID</label>
+              <input type="text" id="modal-cable-prefix" value="C-" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">Número Inicial</label>
+              <input type="number" id="modal-cable-start-num" value="1" min="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs font-mono">
+            </div>
+          </div>
 
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <div>
+              <label class="block text-[10px] text-slate-400">Capacidad FO</label>
+              <select id="modal-cable-capacity" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-200">
+                <option value="48 FO">48 FO (Alimentación)</option>
+                <option value="24 FO">24 FO (Distribución)</option>
+                <option value="16 FO">16 FO</option>
+                <option value="12 FO">12 FO</option>
+                <option value="8 FO">8 FO</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">Atenuación (dB/km)</label>
+              <input type="number" id="modal-cable-attenuation" value="0.35" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs font-mono">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[10px] text-slate-400">Tipo Constructivo</label>
+            <select id="modal-cable-type" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-200">
+              <option value="ADSS Dieléctrico 80m">ADSS Dieléctrico (Span 80m)</option>
+              <option value="Dieléctrico Autosoportado">Dieléctrico Autosoportado Fig. 8</option>
+              <option value="Armado Anti-roedor">Armado Metálico Anti-roedor</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- BLOQUE C: CTOS / NAPS -->
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+          <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+            <i data-lucide="box" class="w-3.5 h-3.5"></i> c) Secuencia CTOs / NAPs
+          </span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-400">Prefijo CTO</label>
+              <input type="text" id="modal-cto-prefix" value="CTO-" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">Inicio CTO (ej. 1, 5...)</label>
+              <input type="number" id="modal-cto-start-num" value="1" min="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs font-mono">
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-500">Permite definir desde qué número inicia la numeración correlativa de Cajas CTO/NAPs.</p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex gap-2">
+        <button id="btn-apply-modal" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-xl text-xs transition">
+          Aplicar y Recalcular
+        </button>
+      </div>
     </div>
+  </div>
 
-    <!-- PMO Audit Modal -->
-    <div id="pmoModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] hidden flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-700 pb-3">
-                <h3 class="text-lg font-bold text-emerald-400 flex items-center space-x-2">
-                    <i class="fa-solid fa-clipboard-check"></i>
-                    <span>Auditoría de Proyecto PMO - Nuakchott</span>
-                </h3>
-                <button onclick="closePmoAuditModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
-            </div>
+  <script>
+    // GLOBAL APP STATE
+    const state = {
+      map: null,
+      cables: [],          // Raw cable coordinates [[lat, lng], ...]
+      cableRecords: [],    // Processed cable objects {id, category, origin, destination, length, capacity, type, attenuation, coords}
+      cePoints: [],        // CE points [{lat, lng, name}]
+      rawCtoPoints: [],     // Raw CTO coordinates extracted from file or sample [[lat, lng], ...]
+      ctoRecords: [],      // Processed CTO & CE objects {id, type, lat, lng, assignedPoleId, distToCe}
+      poles: [],           // Calculated pole records
+      cableLayerGroup: null,
+      poleLayerGroup: null,
+      isDrawing: false,
+      drawPoints: [],
+      tempDrawPolyline: null,
+      toastTimeout: null,
+      isSatellite: false,
+      isReversed: false,
+      activeTab: 'poles',  // 'poles' | 'cables' | 'ctos'
+      streetLayer: null,
+      satLayer: null
+    };
 
-            <div id="pmoModalContent" class="space-y-4 text-sm text-slate-200">
-                <!-- Content dynamically generated -->
-            </div>
+    // SAMPLE DATA FOR TEVRAGH ZEINA (NOUAKCHOTT) INCLUDING CE 001, INTERMEDIATE CTOS AND THE FINAL CTO
+    const NOUAKCHOTT_SAMPLE = [
+      [18.1095, -15.9820], // CE 001 Tevragh (Km 0.00)
+      [18.1082, -15.9805],
+      [18.1068, -15.9788], // CTO-001 (~380m)
+      [18.1050, -15.9765],
+      [18.1035, -15.9740], // CTO-002 (~920m)
+      [18.1020, -15.9715],
+      [18.1015, -15.9680],
+      [18.1022, -15.9645], // CTO-003 (~1650m)
+      [18.1038, -15.9610]  // CTO-004 (FINAL CTO at end of trace ~2050m)
+    ];
 
-            <div class="flex justify-end space-x-3 border-t border-slate-700 pt-3">
-                <button onclick="exportPmoReportFrench()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-semibold">
-                    Exportar Rapport ARE (Français)
-                </button>
-                <button onclick="closePmoAuditModal()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-xs font-semibold">
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    </div>
+    const SAMPLE_CE_POINTS = [
+      { lat: 18.1095, lng: -15.9820, name: 'CE 001 Tevragh' }
+    ];
 
-    <!-- Leaflet & Turf Libraries -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    const SAMPLE_CTO_POINTS = [
+      [18.1068, -15.9788], // CTO-001
+      [18.1035, -15.9740], // CTO-002
+      [18.1022, -15.9645], // CTO-003
+      [18.1038, -15.9610]  // CTO-004 (FINAL CTO)
+    ];
 
-    <script>
-        // --- GLOBAL APP STATE ---
-        let map;
-        let vectorTileLayer, satelliteTileLayer;
-        let isSatellite = false;
+    // NOTIFICATION TOAST FUNCTION
+    function showNotification(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const bgColors = {
+        info: 'bg-slate-800 text-slate-100 border-amber-500/50',
+        success: 'bg-emerald-950/90 text-emerald-200 border-emerald-500/50',
+        error: 'bg-rose-950/90 text-rose-200 border-rose-500/50'
+      };
+
+      const icons = {
+        info: '<i data-lucide="info" class="w-4 h-4 text-amber-400 shrink-0"></i>',
+        success: '<i data-lucide="check-circle" class="w-4 h-4 text-emerald-400 shrink-0"></i>',
+        error: '<i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400 shrink-0"></i>'
+      };
+
+      container.className = `p-3 mb-2 rounded-xl border text-xs flex items-start gap-2.5 shadow-xl animate-toast ${bgColors[type] || bgColors.info}`;
+      container.innerHTML = `${icons[type] || icons.info}<span>${msg}</span>`;
+      container.classList.remove('hidden');
+
+      if (window.lucide) lucide.createIcons();
+
+      if (state.toastTimeout) clearTimeout(state.toastTimeout);
+      state.toastTimeout = setTimeout(() => {
+        container.classList.add('hidden');
+      }, 5000);
+    }
+
+    // HAVERSINE DISTANCE IN METERS
+    function haversineDistance(coords1, coords2) {
+      const [lat1, lon1] = coords1;
+      const [lat2, lon2] = coords2;
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // CALCULATE BEARING
+    function calculateBearing(p1, p2) {
+      const lat1 = p1[0] * Math.PI / 180;
+      const lon1 = p1[1] * Math.PI / 180;
+      const lat2 = p2[0] * Math.PI / 180;
+      const lon2 = p2[1] * Math.PI / 180;
+      const dLon = lon2 - lon1;
+      const y = Math.sin(dLon) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+      const brng = Math.atan2(y, x) * 180 / Math.PI;
+      return (brng + 360) % 360;
+    }
+
+    // CALCULATE ANGLE CHANGE
+    function calculateAngleChange(p1, p2, p3) {
+      const b1 = calculateBearing(p1, p2);
+      const b2 = calculateBearing(p2, p3);
+      let diff = Math.abs(b1 - b2);
+      if (diff > 180) diff = 360 - diff;
+      return diff;
+    }
+
+    // INTERPOLATE LAT/LNG POINT
+    function interpolatePoint(p1, p2, fraction) {
+      const lat = p1[0] + (p2[0] - p1[0]) * fraction;
+      const lng = p1[1] + (p2[1] - p1[1]) * fraction;
+      return [lat, lng];
+    }
+
+    // PARSE COORDINATES TEXT STRING
+    function parseCoordinatesText(text) {
+      if (!text) return [];
+      const points = [];
+      const tokens = text.trim().split(/[\s\n\r\t]+/);
+      for (let token of tokens) {
+        if (!token) continue;
+        const parts = token.split(',');
+        if (parts.length >= 2) {
+          const lng = parseFloat(parts[0]);
+          const lat = parseFloat(parts[1]);
+          if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+            points.push([lat, lng]);
+          }
+        }
+      }
+      return points;
+    }
+
+    // EXTRACT KML GEOMETRIES AND PLACEMARKS
+    function extractGeometriesFromKML(kmlText) {
+      const lines = [];
+      const cePoints = [];
+      const ctoPoints = [];
+
+      const sanitizedKml = kmlText.replace(/&(?!(amp|lt|gt|quot|apos);)/g, "&amp;");
+
+      try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(sanitizedKml, "text/xml");
+
+        const allNodes = xmlDoc.getElementsByTagName("*");
+        for (let i = 0; i < allNodes.length; i++) {
+          const node = allNodes[i];
+          const localName = (node.localName || node.tagName || "").toLowerCase();
+
+          if (localName === "linestring" || localName === "linearring" || localName === "polygon") {
+            const coordNodes = Array.from(node.getElementsByTagName("*")).filter(
+              child => (child.localName || child.tagName || "").toLowerCase() === "coordinates"
+            );
+
+            coordNodes.forEach(cNode => {
+              const pts = parseCoordinatesText(cNode.textContent);
+              if (pts.length >= 2) {
+                lines.push(pts);
+              }
+            });
+          }
+
+          if (localName === "placemark") {
+            const nameNode = Array.from(node.getElementsByTagName("*")).find(
+              c => (c.localName || c.tagName || "").toLowerCase() === "name"
+            );
+            const nameText = nameNode ? nameNode.textContent.trim() : "";
+
+            if (/CE|CERA|CABECERA|CENTRAL|HEADEND|NODE|EMPALME/i.test(nameText)) {
+              const pointNodes = Array.from(node.getElementsByTagName("*")).filter(
+                c => (c.localName || c.tagName || "").toLowerCase() === "point"
+              );
+
+              pointNodes.forEach(pNode => {
+                const coordNode = Array.from(pNode.getElementsByTagName("*")).find(
+                  c => (c.localName || c.tagName || "").toLowerCase() === "coordinates"
+                );
+                if (coordNode) {
+                  const pts = parseCoordinatesText(coordNode.textContent);
+                  if (pts.length >= 1) {
+                    cePoints.push({ lat: pts[0][0], lng: pts[0][1], name: nameText || "CE 001" });
+                  }
+                }
+              });
+            } else if (/CTO|NAP|TAP|CAJA|BOX|SPLITTER|TERMINAL/i.test(nameText)) {
+              const pointNodes = Array.from(node.getElementsByTagName("*")).filter(
+                c => (c.localName || c.tagName || "").toLowerCase() === "point"
+              );
+
+              pointNodes.forEach(pNode => {
+                const coordNode = Array.from(pNode.getElementsByTagName("*")).find(
+                  c => (c.localName || c.tagName || "").toLowerCase() === "coordinates"
+                );
+                if (coordNode) {
+                  const pts = parseCoordinatesText(coordNode.textContent);
+                  if (pts.length >= 1) ctoPoints.push(pts[0]);
+                }
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("DOMParser parcial, aplicando fallback regex:", err);
+      }
+
+      if (lines.length === 0) {
+        const coordRegex = /<([a-z0-9_]+:)?coordinates[^>]*>([\s\S]*?)<\/([a-z0-9_]+:)?coordinates>/gi;
+        let match;
+        while ((match = coordRegex.exec(kmlText)) !== null) {
+          const textContent = match[2];
+          const pts = parseCoordinatesText(textContent);
+          if (pts.length >= 2) {
+            lines.push(pts);
+          }
+        }
+      }
+
+      return { lines, cePoints, ctoPoints };
+    }
+
+    // FILE LOADING HANDLER (.KMZ & .KML)
+    async function handleFile(file) {
+      if (!file) return;
+
+      const baseName = file.name.replace(/\.[^/.]+$/, "");
+      const folderInput = document.getElementById('param-folder-name');
+      if (folderInput) {
+        folderInput.value = baseName;
+      }
+
+      state.isReversed = false;
+      updateReverseUI();
+
+      showNotification(`Procesando archivo: ${file.name}...`, 'info');
+
+      try {
+        let kmlText = "";
+        let arrayBuffer;
+
+        try {
+          arrayBuffer = await file.arrayBuffer();
+        } catch (bufErr) {
+          arrayBuffer = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error("Error de lectura del archivo local."));
+            reader.readAsArrayBuffer(file);
+          });
+        }
+
+        try {
+          const zip = new JSZip();
+          await zip.loadAsync(arrayBuffer);
+
+          let kmlFileEntry = null;
+          zip.forEach((relativePath, zipEntry) => {
+            if (!zipEntry.dir && relativePath.toLowerCase().endsWith('.kml')) {
+              kmlFileEntry = zipEntry;
+            }
+          });
+
+          if (kmlFileEntry) {
+            kmlText = await kmlFileEntry.async("string");
+          } else {
+            throw new Error("No se encontró ningún archivo .kml dentro del contenedor .kmz");
+          }
+        } catch (zipErr) {
+          const decoder = new TextDecoder("utf-8");
+          kmlText = decoder.decode(arrayBuffer);
+        }
+
+        if (!kmlText || kmlText.trim().length === 0) {
+          throw new Error("El archivo extraído está vacío o no es legible.");
+        }
+
+        const { lines, cePoints, ctoPoints } = extractGeometriesFromKML(kmlText);
+
+        if (lines.length === 0) {
+          showNotification("No se encontraron trazados de cable en el archivo.", 'error');
+          return;
+        }
+
+        state.cables = lines;
+        state.cePoints = cePoints;
+        state.rawCtoPoints = ctoPoints;
+        processCablePoles();
+        zoomToFit();
         
-        let drawnItems;
-        let appState = {
-            clusterNum: "1",
-            ceName: "CE001",
-            ctoStart: 1,
-            cableStart: 100,
-            poleStart: 1,
-            perimeterPolygon: null,
-            ceLatLng: null,
-            ctos: [],       // [{ id, name, latlng, marker, circle }]
-            cables: [],     // [{ id, name, latlngs, polyline, lengthMeters }]
-            poles: []       // [{ id, name, latlng, marker }]
+        const infoMsg = `Cargados ${lines.length} tramos. CEs: ${state.cePoints.length}, CTOs: ${state.ctoRecords.length}.`;
+        showNotification(`Éxito: ${infoMsg}`, 'success');
+
+      } catch (err) {
+        console.error("Error al cargar KMZ:", err);
+        showNotification(`Error de carga: ${err.message}`, 'error');
+      }
+    }
+
+    // CHAIN AND ORDER CABLE SEGMENTS
+    function chainAndOrderCables(cables, cePoints = [], isReversed = false) {
+      if (!cables || cables.length === 0) return [];
+      let remaining = cables.map(c => [...c]);
+      let chains = [];
+
+      while (remaining.length > 0) {
+        let currentChain = remaining.shift();
+        let added = true;
+
+        while (added) {
+          added = false;
+          const chainStart = currentChain[0];
+          const chainEnd = currentChain[currentChain.length - 1];
+
+          for (let i = 0; i < remaining.length; i++) {
+            const seg = remaining[i];
+            const segStart = seg[0];
+            const segEnd = seg[seg.length - 1];
+
+            if (haversineDistance(chainEnd, segStart) < 15.0) {
+              currentChain = currentChain.concat(seg.slice(1));
+              remaining.splice(i, 1);
+              added = true;
+              break;
+            } else if (haversineDistance(chainEnd, segEnd) < 15.0) {
+              currentChain = currentChain.concat([...seg].reverse().slice(1));
+              remaining.splice(i, 1);
+              added = true;
+              break;
+            } else if (haversineDistance(chainStart, segEnd) < 15.0) {
+              currentChain = seg.concat(currentChain.slice(1));
+              remaining.splice(i, 1);
+              added = true;
+              break;
+            } else if (haversineDistance(chainStart, segStart) < 15.0) {
+              currentChain = [...seg].reverse().concat(currentChain.slice(1));
+              remaining.splice(i, 1);
+              added = true;
+              break;
+            }
+          }
+        }
+
+        if (cePoints && cePoints.length > 0) {
+          const startPt = currentChain[0];
+          const endPt = currentChain[currentChain.length - 1];
+
+          let minDistStart = Infinity;
+          let minDistEnd = Infinity;
+
+          cePoints.forEach(ce => {
+            const ceCoord = [ce.lat, ce.lng];
+            const dStart = haversineDistance(startPt, ceCoord);
+            const dEnd = haversineDistance(endPt, ceCoord);
+            if (dStart < minDistStart) minDistStart = dStart;
+            if (dEnd < minDistEnd) minDistEnd = dEnd;
+          });
+
+          if (minDistEnd < minDistStart) {
+            currentChain.reverse();
+          }
+        }
+
+        chains.push(currentChain);
+      }
+
+      if (isReversed) {
+        chains.reverse();
+        chains = chains.map(chain => [...chain].reverse());
+      }
+
+      return chains;
+    }
+
+    // PROJECT POINT ON POLYLINE
+    function getDistanceOnPolyline(polyline, targetPt) {
+      let accumDist = 0;
+      let bestDist = Infinity;
+      let bestPolyDist = 0;
+
+      for (let i = 0; i < polyline.length - 1; i++) {
+        const p1 = polyline[i];
+        const p2 = polyline[i + 1];
+        const segLen = haversineDistance(p1, p2);
+
+        const steps = Math.max(10, Math.ceil(segLen / 2));
+        for (let s = 0; s <= steps; s++) {
+          const frac = s / steps;
+          const pt = interpolatePoint(p1, p2, frac);
+          const d = haversineDistance(pt, targetPt);
+          if (d < bestDist) {
+            bestDist = d;
+            bestPolyDist = accumDist + (segLen * frac);
+          }
+        }
+        accumDist += segLen;
+      }
+
+      return { distanceToPolyline: bestDist, distanceAlongPolyline: bestPolyDist };
+    }
+
+    // GET POINT AT ACCUMULATED DISTANCE
+    function getPointAtPolylineDistance(polyline, dist) {
+      let accumDist = 0;
+      if (dist <= 0) return polyline[0];
+
+      for (let i = 0; i < polyline.length - 1; i++) {
+        const p1 = polyline[i];
+        const p2 = polyline[i + 1];
+        const segLen = haversineDistance(p1, p2);
+
+        if (accumDist + segLen >= dist) {
+          const rem = dist - accumDist;
+          const frac = segLen > 0 ? (rem / segLen) : 0;
+          return interpolatePoint(p1, p2, frac);
+        }
+        accumDist += segLen;
+      }
+      return polyline[polyline.length - 1];
+    }
+
+    // SLICE POLYLINE BETWEEN TWO DISTANCE OFFSETS
+    function slicePolylineByDistances(polyline, startDist, endDist) {
+      if (startDist >= endDist) return [];
+      const result = [];
+      let accumDist = 0;
+
+      for (let i = 0; i < polyline.length - 1; i++) {
+        const p1 = polyline[i];
+        const p2 = polyline[i + 1];
+        const segLen = haversineDistance(p1, p2);
+        const segStartDist = accumDist;
+        const segEndDist = accumDist + segLen;
+
+        if (segEndDist >= startDist && segStartDist <= endDist) {
+          let f1 = 0;
+          let f2 = 1;
+          if (startDist > segStartDist) {
+            f1 = (startDist - segStartDist) / segLen;
+          }
+          if (endDist < segEndDist) {
+            f2 = (endDist - segStartDist) / segLen;
+          }
+          const pt1 = interpolatePoint(p1, p2, f1);
+          const pt2 = interpolatePoint(p1, p2, f2);
+
+          if (result.length === 0) {
+            result.push(pt1);
+          } else {
+            const lastPt = result[result.length - 1];
+            if (haversineDistance(lastPt, pt1) > 0.01) {
+              result.push(pt1);
+            }
+          }
+          result.push(pt2);
+        }
+        accumDist += segLen;
+      }
+      return result;
+    }
+
+    // DYNAMIC SVG POLE ICON
+    function createPoleIcon(poleColor, isCorner, isCTO, isCE, isFirstPole = false) {
+      let strokeStyle = `stroke="#ffffff" stroke-width="1.2"`;
+      let ringSvg = '';
+
+      if (isFirstPole) {
+        strokeStyle = `stroke="#10b981" stroke-width="2.5"`;
+        ringSvg = `<circle cx="10" cy="10" r="9" fill="none" stroke="#10b981" stroke-width="2.5" class="pulse-origin-ring" opacity="0.8" />
+                   <circle cx="10" cy="10" r="9" fill="none" stroke="#10b981" stroke-width="2" />`;
+      } else if (isCE) {
+        strokeStyle = `stroke="#c084fc" stroke-width="2.5"`;
+        ringSvg = `<circle cx="10" cy="10" r="9" fill="none" stroke="#c084fc" stroke-width="2" />`;
+      } else if (isCTO) {
+        strokeStyle = `stroke="#aaff00" stroke-width="2.5"`;
+        ringSvg = `<circle cx="10" cy="10" r="9" fill="none" stroke="#aaff00" stroke-width="2" stroke-dasharray="2.5 2.5" />`;
+      } else if (isCorner) {
+        strokeStyle = `stroke="#fbbf24" stroke-width="2"`;
+      }
+
+      const svg = `
+        <svg width="22" height="22" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          ${ringSvg}
+          <circle cx="10" cy="10" r="6.5" fill="${poleColor}" ${strokeStyle} />
+        </svg>
+      `;
+      return L.divIcon({
+        html: svg,
+        className: 'pole-svg-icon',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
+      });
+    }
+
+    // MAIN POLE & CABLE GEODESIC ENGINE (CE 001 + GUARANTEED LAST CTO)
+    function processCablePoles() {
+      const targetSpan = parseFloat(document.getElementById('param-target-span').value) || 40;
+      const minSpanThreshold = parseFloat(document.getElementById('param-min-span')?.value) || 15;
+      const angleThreshold = parseFloat(document.getElementById('param-angle')?.value) || 5;
+      const poleColor = document.getElementById('param-pole-color').value || "#8B4513";
+      const poleCost = parseFloat(document.getElementById('param-pole-cost').value) || 180;
+
+      // Cable parameters
+      const cablePrefix = document.getElementById('param-cable-prefix').value || "C-";
+      let cableCounter = parseInt(document.getElementById('param-cable-start-num').value) || 1;
+      const cableCapacityDefault = document.getElementById('param-cable-capacity').value || "48 FO";
+      const cableType = document.getElementById('param-cable-type').value || "ADSS Dieléctrico 80m";
+      const cableAttCoeff = parseFloat(document.getElementById('param-cable-attenuation').value) || 0.35;
+
+      // CTO parameters
+      const ctoPrefix = document.getElementById('param-cto-prefix').value || "CTO-";
+      let ctoCounter = parseInt(document.getElementById('param-cto-start-num').value) || 1;
+
+      const continuousCables = chainAndOrderCables(state.cables, state.cePoints, state.isReversed);
+
+      // GUARANTEE CE 001 AT ORIGIN (0m) IF NOT DEFINED
+      if (continuousCables.length > 0 && state.cePoints.length === 0) {
+        const startPoint = continuousCables[0][0];
+        state.cePoints = [{ lat: startPoint[0], lng: startPoint[1], name: 'CE 001' }];
+      }
+
+      // GUARANTEE THE LAST CTO AT END OF LINE IF NOT INCLUDED IN RAW POINTS
+      if (continuousCables.length > 0) {
+        const lastChain = continuousCables[continuousCables.length - 1];
+        const endCoord = lastChain[lastChain.length - 1];
+        const hasEndCto = state.rawCtoPoints.some(cto => {
+          const cCoord = Array.isArray(cto) ? cto : [cto.lat, cto.lng];
+          return haversineDistance(endCoord, cCoord) < 25.0;
+        });
+
+        if (!hasEndCto) {
+          state.rawCtoPoints.push(endCoord);
+        }
+      }
+
+      const rawPoles = [];
+      const cableRecords = [];
+      const ctoRecords = [];
+
+      let totalCableLength = 0;
+      let maxAttenuationGlobal = 0;
+      let countCEtoCTO = 0;
+      let countCTOtoCTO = 0;
+
+      // 1. ADD CE 001 TO THE ELEMENTS RECORD (TAB 3)
+      if (state.cePoints.length > 0) {
+        state.cePoints.forEach(ce => {
+          ctoRecords.push({
+            id: ce.name || 'CE 001',
+            type: 'Cabecera CE',
+            lat: ce.lat,
+            lng: ce.lng,
+            assignedPoleId: 'P-001 (Cabecera)',
+            distToCe: 0.0
+          });
+        });
+      }
+
+      // 2. PRE-PROCESS & NUMBER CTOS CORRELATIVELY INCL. LAST CTO
+      const indexedCtoNodes = [];
+      state.rawCtoPoints.forEach((ctoPt) => {
+        const ctoCoord = Array.isArray(ctoPt) ? ctoPt : [ctoPt.lat, ctoPt.lng];
+        const formattedCtoId = `${ctoPrefix}${String(ctoCounter++).padStart(3, '0')}`;
+        indexedCtoNodes.push({
+          id: formattedCtoId,
+          lat: ctoCoord[0],
+          lng: ctoCoord[1]
+        });
+      });
+
+      continuousCables.forEach((cableCoords, chainIdx) => {
+        if (!cableCoords || cableCoords.length < 2) return;
+
+        const cleanCoords = [cableCoords[0]];
+        for (let i = 1; i < cableCoords.length; i++) {
+          if (haversineDistance(cleanCoords[cleanCoords.length - 1], cableCoords[i]) > 0.5) {
+            cleanCoords.push(cableCoords[i]);
+          }
+        }
+        if (cleanCoords.length < 2) return;
+
+        let lineTotalLen = 0;
+        for (let i = 0; i < cleanCoords.length - 1; i++) {
+          lineTotalLen += haversineDistance(cleanCoords[i], cleanCoords[i + 1]);
+        }
+        totalCableLength += lineTotalLen;
+
+        const keyEquipmentNodes = [];
+
+        // START ENDPOINT (CE 001)
+        let startIsCE = false;
+        let startIsCTO = false;
+        let startCeName = "CE 001";
+        let startCtoName = indexedCtoNodes.length > 0 ? indexedCtoNodes[0].id : `${ctoPrefix}001`;
+
+        state.cePoints.forEach(ce => {
+          if (haversineDistance(cleanCoords[0], [ce.lat, ce.lng]) < 40.0) {
+            startIsCE = true;
+            if (ce.name) startCeName = ce.name;
+          }
+        });
+
+        if (!startIsCE && state.cePoints.length === 0 && chainIdx === 0 && !state.isReversed) {
+          startIsCE = true;
+        }
+
+        indexedCtoNodes.forEach(cto => {
+          if (haversineDistance(cleanCoords[0], [cto.lat, cto.lng]) < 25.0) {
+            startIsCTO = true;
+            startCtoName = cto.id;
+          }
+        });
+
+        keyEquipmentNodes.push({
+          dist: 0,
+          lat: cleanCoords[0][0],
+          lng: cleanCoords[0][1],
+          isCE: startIsCE,
+          isCTO: startIsCTO,
+          name: startIsCE ? startCeName : (startIsCTO ? startCtoName : "Origen CE"),
+          shortName: startIsCE ? (startCeName.split(' ')[0] + ' ' + (startCeName.split(' ')[1] || '001')) : (startIsCTO ? startCtoName : "Origen")
+        });
+
+        // INTERMEDIATE CEs
+        state.cePoints.forEach((ce) => {
+          const projection = getDistanceOnPolyline(cleanCoords, [ce.lat, ce.lng]);
+          if (projection.distanceToPolyline <= 35.0 && projection.distanceAlongPolyline > 3.0 && projection.distanceAlongPolyline < lineTotalLen - 3.0) {
+            const cePt = getPointAtPolylineDistance(cleanCoords, projection.distanceAlongPolyline);
+            keyEquipmentNodes.push({
+              dist: projection.distanceAlongPolyline,
+              lat: cePt[0],
+              lng: cePt[1],
+              isCE: true,
+              isCTO: false,
+              name: ce.name || 'CE 001',
+              shortName: (ce.name || 'CE 001').split(' ')[0] + ' ' + ((ce.name || 'CE 001').split(' ')[1] || '001')
+            });
+          }
+        });
+
+        // INTERMEDIATE AND FINAL CTOs PROJECTION
+        indexedCtoNodes.forEach((cto) => {
+          const projection = getDistanceOnPolyline(cleanCoords, [cto.lat, cto.lng]);
+          if (projection.distanceToPolyline <= 25.0) {
+            const ctoPt = getPointAtPolylineDistance(cleanCoords, projection.distanceAlongPolyline);
+            
+            // Add if intermediate or if it's the exact end node
+            if (projection.distanceAlongPolyline > 3.0 && projection.distanceAlongPolyline < lineTotalLen - 3.0) {
+              keyEquipmentNodes.push({
+                dist: projection.distanceAlongPolyline,
+                lat: ctoPt[0],
+                lng: ctoPt[1],
+                isCE: false,
+                isCTO: true,
+                name: cto.id,
+                shortName: cto.id
+              });
+            }
+
+            ctoRecords.push({
+              id: cto.id,
+              type: 'Caja CTO / NAP',
+              lat: ctoPt[0],
+              lng: ctoPt[1],
+              distToCe: projection.distanceAlongPolyline
+            });
+          }
+        });
+
+        // END ENDPOINT (GUARANTEED LAST CTO OR TERMINAL)
+        let endIsCE = false;
+        let endIsCTO = false;
+        let endCeName = "CE 001";
+        let endCtoName = indexedCtoNodes.length > 0 ? indexedCtoNodes[indexedCtoNodes.length - 1].id : `${ctoPrefix}001`;
+
+        state.cePoints.forEach(ce => {
+          if (haversineDistance(cleanCoords[cleanCoords.length - 1], [ce.lat, ce.lng]) < 40.0) {
+            endIsCE = true;
+            if (ce.name) endCeName = ce.name;
+          }
+        });
+
+        indexedCtoNodes.forEach(cto => {
+          if (haversineDistance(cleanCoords[cleanCoords.length - 1], [cto.lat, cto.lng]) < 25.0) {
+            endIsCTO = true;
+            endCtoName = cto.id;
+          }
+        });
+
+        if (!endIsCE && !endIsCTO && indexedCtoNodes.length > 0) {
+          endIsCTO = true;
+          endCtoName = indexedCtoNodes[indexedCtoNodes.length - 1].id;
+        }
+
+        keyEquipmentNodes.push({
+          dist: lineTotalLen,
+          lat: cleanCoords[cleanCoords.length - 1][0],
+          lng: cleanCoords[cleanCoords.length - 1][1],
+          isCE: endIsCE,
+          isCTO: endIsCTO,
+          name: endIsCE ? endCeName : (endIsCTO ? endCtoName : "Terminal CTO"),
+          shortName: endIsCE ? (endCeName.split(' ')[0] + ' ' + (endCeName.split(' ')[1] || '001')) : (endIsCTO ? endCtoName : "CTO Final")
+        });
+
+        keyEquipmentNodes.sort((a, b) => a.dist - b.dist);
+        const cleanKeyNodes = [];
+        keyEquipmentNodes.forEach(node => {
+          if (cleanKeyNodes.length === 0) {
+            cleanKeyNodes.push(node);
+          } else {
+            const last = cleanKeyNodes[cleanKeyNodes.length - 1];
+            if (Math.abs(node.dist - last.dist) < 5.0) {
+              if (node.isCE) { last.isCE = true; last.name = node.name; last.shortName = node.shortName; }
+              if (node.isCTO) { last.isCTO = true; if (!last.isCE) { last.name = node.name; last.shortName = node.shortName; } }
+            } else {
+              cleanKeyNodes.push(node);
+            }
+          }
+        });
+
+        // CUT CABLE INTO SUB-SEGMENTS
+        for (let k = 0; k < cleanKeyNodes.length - 1; k++) {
+          const nodeStart = cleanKeyNodes[k];
+          const nodeEnd = cleanKeyNodes[k + 1];
+          const subLen = nodeEnd.dist - nodeStart.dist;
+
+          if (subLen <= 0.5) continue;
+
+          const subCoords = slicePolylineByDistances(cleanCoords, nodeStart.dist, nodeEnd.dist);
+          if (subCoords.length < 2) continue;
+
+          let category = "CE a CTO";
+          let categoryTag = "CE a CTO (Alimentación / Principal)";
+          let capacity = "48 FO";
+
+          if (nodeStart.isCE || nodeEnd.isCE) {
+            category = "CE a CTO";
+            categoryTag = "CE a CTO (Alimentación / Principal)";
+            capacity = cableCapacityDefault;
+            countCEtoCTO++;
+          } else {
+            category = "CTO a CTO";
+            categoryTag = "CTO a CTO (Distribución Cascada)";
+            capacity = cableCapacityDefault.includes("48") ? "24 FO" : cableCapacityDefault;
+            countCTOtoCTO++;
+          }
+
+          const formattedCableNum = String(cableCounter++).padStart(3, '0');
+          const cableId = `${cablePrefix}${formattedCableNum}`;
+          const cableAttdB = (subLen / 1000) * cableAttCoeff;
+
+          if (cableAttdB > maxAttenuationGlobal) maxAttenuationGlobal = cableAttdB;
+
+          cableRecords.push({
+            id: cableId,
+            category: category,
+            categoryTag: categoryTag,
+            origin: nodeStart.name,
+            destination: nodeEnd.name,
+            originShort: nodeStart.shortName,
+            destShort: nodeEnd.shortName,
+            length: subLen,
+            capacity: capacity,
+            type: cableType,
+            attenuation: cableAttdB,
+            attenuationCoeff: cableAttCoeff,
+            coords: subCoords
+          });
+        }
+
+        // POLE GEODESIC PLACEMENT ALONG FULL POLYLINE (UNCONDITIONAL CORNER RULE)
+        const fixedNodesPoles = [];
+
+        fixedNodesPoles.push({
+          dist: 0,
+          lat: cleanCoords[0][0],
+          lng: cleanCoords[0][1],
+          isCorner: true,
+          isCTO: startIsCTO,
+          ctoName: startCtoName,
+          isCE: startIsCE,
+          ceName: startCeName,
+          angle: 0
+        });
+
+        // UNCONDITIONAL CORNER POLE RULE (angle >= angleThreshold)
+        let accumDist = 0;
+        for (let i = 1; i < cleanCoords.length - 1; i++) {
+          const prev = cleanCoords[i - 1];
+          const curr = cleanCoords[i];
+          const next = cleanCoords[i + 1];
+          accumDist += haversineDistance(prev, curr);
+
+          const angle = calculateAngleChange(prev, curr, next);
+          if (angle >= angleThreshold) {
+            fixedNodesPoles.push({
+              dist: accumDist,
+              lat: curr[0],
+              lng: curr[1],
+              isCorner: true,
+              isCTO: false,
+              isCE: false,
+              angle: angle
+            });
+          }
+        }
+
+        cleanKeyNodes.forEach(kn => {
+          if (kn.dist > 1.0 && kn.dist < lineTotalLen - 1.0) {
+            fixedNodesPoles.push({
+              dist: kn.dist,
+              lat: kn.lat,
+              lng: kn.lng,
+              isCorner: false,
+              isCTO: kn.isCTO,
+              ctoName: kn.name,
+              isCE: kn.isCE,
+              ceName: kn.name,
+              angle: 0
+            });
+          }
+        });
+
+        fixedNodesPoles.push({
+          dist: lineTotalLen,
+          lat: cleanCoords[cleanCoords.length - 1][0],
+          lng: cleanCoords[cleanCoords.length - 1][1],
+          isCorner: true,
+          isCTO: endIsCTO,
+          ctoName: endCtoName,
+          isCE: endIsCE,
+          ceName: endCeName,
+          angle: 0
+        });
+
+        fixedNodesPoles.sort((a, b) => a.dist - b.dist);
+
+        const cleanFixedPoles = [];
+        fixedNodesPoles.forEach(node => {
+          if (cleanFixedPoles.length === 0) {
+            cleanFixedPoles.push(node);
+          } else {
+            const last = cleanFixedPoles[cleanFixedPoles.length - 1];
+            if (Math.abs(node.dist - last.dist) < 3.0) {
+              if (node.isCE) { last.isCE = true; last.ceName = node.ceName || last.ceName; }
+              if (node.isCTO) { last.isCTO = true; last.ctoName = node.ctoName || last.ctoName; }
+              if (node.isCorner) last.isCorner = true;
+              if (node.angle > last.angle) last.angle = node.angle;
+            } else {
+              cleanFixedPoles.push(node);
+            }
+          }
+        });
+
+        const defaultType = document.getElementById('param-pole-type').value;
+
+        for (let i = 0; i < cleanFixedPoles.length - 1; i++) {
+          const fnStart = cleanFixedPoles[i];
+          const fnEnd = cleanFixedPoles[i + 1];
+          const subLen = fnEnd.dist - fnStart.dist;
+
+          if (i === 0) {
+            let roleLabel = defaultType;
+            if (fnStart.isCE) roleLabel += ` (${fnStart.ceName || 'CE 001'})`;
+            else if (fnStart.isCTO) roleLabel += ` (con ${fnStart.ctoName || 'CTO'})`;
+            else if (fnStart.isCorner) roleLabel += ` (Esquina ${fnStart.angle.toFixed(1)}°)`;
+
+            rawPoles.push({
+              lat: fnStart.lat,
+              lng: fnStart.lng,
+              isCorner: fnStart.isCorner,
+              isCTO: fnStart.isCTO,
+              ctoName: fnStart.ctoName,
+              isCE: fnStart.isCE,
+              ceName: fnStart.ceName || 'CE 001',
+              angle: fnStart.angle,
+              type: roleLabel
+            });
+          }
+
+          let numSpans = Math.round(subLen / targetSpan);
+          if (numSpans < 1) numSpans = 1;
+
+          for (let j = 1; j < numSpans; j++) {
+            const fracDist = fnStart.dist + (j * (subLen / numSpans));
+            const pos = getPointAtPolylineDistance(cleanCoords, fracDist);
+            rawPoles.push({
+              lat: pos[0],
+              lng: pos[1],
+              isCorner: false,
+              isCTO: false,
+              isCE: false,
+              angle: 0,
+              type: defaultType
+            });
+          }
+
+          let endRoleLabel = defaultType;
+          if (fnEnd.isCE) endRoleLabel += ` (${fnEnd.ceName || 'Cabecera CE'})`;
+          else if (fnEnd.isCTO) endRoleLabel += ` (con ${fnEnd.ctoName || 'CTO'})`;
+          else if (fnEnd.isCorner) endRoleLabel += ` (Esquina ${fnEnd.angle.toFixed(1)}°)`;
+
+          rawPoles.push({
+            lat: fnEnd.lat,
+            lng: fnEnd.lng,
+            isCorner: fnEnd.isCorner,
+            isCTO: fnEnd.isCTO,
+            ctoName: fnEnd.ctoName,
+            isCE: fnEnd.isCE,
+            ceName: fnEnd.ceName,
+            angle: fnEnd.angle,
+            type: endRoleLabel
+          });
+        }
+      });
+
+      // DEDUPLICATION OF POLES
+      const finalPoles = [];
+      const defaultType = document.getElementById('param-pole-type').value;
+
+      rawPoles.forEach(p => {
+        let matchedIndex = -1;
+        let minFoundDist = Infinity;
+
+        for (let i = 0; i < finalPoles.length; i++) {
+          const d = haversineDistance([finalPoles[i].lat, finalPoles[i].lng], [p.lat, p.lng]);
+          if (d < minSpanThreshold) {
+            if (d < minFoundDist) {
+              minFoundDist = d;
+              matchedIndex = i;
+            }
+          }
+        }
+
+        if (matchedIndex !== -1) {
+          const target = finalPoles[matchedIndex];
+          target.isDoublePass = true;
+
+          if (p.isCE) {
+            target.isCE = true;
+            target.ceName = p.ceName || target.ceName;
+            target.lat = p.lat;
+            target.lng = p.lng;
+          } else if (p.isCTO) {
+            target.isCTO = true;
+            target.ctoName = p.ctoName || target.ctoName;
+            if (!target.isCE) {
+              target.lat = p.lat;
+              target.lng = p.lng;
+            }
+          } else if (p.isCorner) {
+            target.isCorner = true;
+            if (!target.isCE && !target.isCTO) {
+              target.lat = p.lat;
+              target.lng = p.lng;
+            }
+          }
+
+          if (p.angle > target.angle) {
+            target.angle = p.angle;
+          }
+
+          let roleDesc = defaultType;
+          if (target.isCE) roleDesc += ` (${target.ceName || 'Cabecera CE'})`;
+          else if (target.isCTO) roleDesc += ` (con ${target.ctoName || 'CTO'})`;
+          else if (target.isCorner) roleDesc += ` (Vértice ${target.angle.toFixed(1)}°)`;
+
+          roleDesc += ' [Paso Múltiple / Ida y Vuelta]';
+          target.type = roleDesc;
+
+        } else {
+          finalPoles.push({
+            ...p,
+            isDoublePass: false
+          });
+        }
+      });
+
+      // RE-INDEX POLES SEQUENTIALLY INCL P-001 AT CE
+      const poleStartNum = parseInt(document.getElementById('param-pole-start-num')?.value) || 1;
+      const polePrefix = document.getElementById('param-pole-prefix')?.value || "P-";
+
+      state.poles = finalPoles.map((p, idx) => {
+        const currentNumber = poleStartNum + idx;
+        const formattedIndex = String(currentNumber).padStart(3, '0');
+        return {
+          ...p,
+          id: `${polePrefix}${formattedIndex}`
         };
+      });
 
-        let undoStack = [];
-        let isDrawingCableMode = false;
-        let activeDrawCableLatLngs = [];
-        let activeDrawPolyline = null;
+      // LINK CTOs AND CEs TO CLOSEST POLE FOR DATA TAB
+      ctoRecords.forEach(elem => {
+        let closestPoleId = "Sin Asignar";
+        let minD = Infinity;
 
-        // --- INITIALIZATION ---
-        window.onload = function() {
-            initMap();
-            setupDragAndDrop();
-            saveUndoState();
-        };
+        state.poles.forEach(p => {
+          const d = haversineDistance([elem.lat, elem.lng], [p.lat, p.lng]);
+          if (d < minD) {
+            minD = d;
+            closestPoleId = p.id;
+          }
+        });
+        elem.assignedPoleId = closestPoleId;
+      });
 
-        function initMap() {
-            // Default center: Tevragh Zeina, Nuakchott
-            map = L.map('map', { zoomControl: true }).setView([18.1275, -15.9640], 16);
+      state.cableRecords = cableRecords;
+      state.ctoRecords = ctoRecords;
 
-            vectorTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                maxZoom: 20,
-                attribution: '&copy; OpenStreetMap, &copy; CARTO'
-            }).addTo(map);
+      let maxSpan = 0;
+      let totalSpanSum = 0;
+      let spanCount = 0;
 
-            satelliteTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                maxZoom: 19,
-                attribution: 'Tiles &copy; Esri'
-            });
+      for (let i = 0; i < state.poles.length; i++) {
+        const curr = state.poles[i];
+        let spanPrev = 0;
+        let spanNext = 0;
 
-            drawnItems = new L.FeatureGroup();
-            map.addLayer(drawnItems);
-
-            // Leaflet Draw Control for perimeter creation
-            const drawControl = new L.Control.Draw({
-                draw: {
-                    polygon: { allowIntersection: false, showArea: true },
-                    polyline: false, rectangle: false, circle: false, marker: false, circlemarker: false
-                },
-                edit: { featureGroup: drawnItems, remove: true }
-            });
-            map.addControl(drawControl);
-
-            map.on(L.Draw.Event.CREATED, function (e) {
-                const layer = e.layer;
-                drawnItems.clearLayers();
-                drawnItems.addLayer(layer);
-                
-                const geoJSON = layer.toGeoJSON();
-                appState.perimeterPolygon = geoJSON.geometry;
-                autoGenerateLayoutFromPerimeter(geoJSON.geometry);
-            });
-
-            map.on('click', onMapClickForCableDraw);
-            
-            document.addEventListener('keydown', function(e) {
-                if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-                    e.preventDefault();
-                    undoAction();
-                }
-            });
+        if (i > 0) {
+          spanPrev = haversineDistance([state.poles[i - 1].lat, state.poles[i - 1].lng], [curr.lat, curr.lng]);
+        }
+        if (i < state.poles.length - 1) {
+          spanNext = haversineDistance([curr.lat, curr.lng], [state.poles[i + 1].lat, state.poles[i + 1].lng]);
         }
 
-        function toggleSatelliteView() {
-            if (!isSatellite) {
-                map.removeLayer(vectorTileLayer);
-                map.addLayer(satelliteTileLayer);
-                document.getElementById('satBtnText').innerText = "Vista Mapa Oscuro";
-                document.getElementById('satelliteToggleBtn').classList.replace('bg-indigo-600', 'bg-slate-700');
-            } else {
-                map.removeLayer(satelliteTileLayer);
-                map.addLayer(vectorTileLayer);
-                document.getElementById('satBtnText').innerText = "Vista Satélite";
-                document.getElementById('satelliteToggleBtn').classList.replace('bg-slate-700', 'bg-indigo-600');
-            }
-            isSatellite = !isSatellite;
+        curr.spanPrev = spanPrev;
+        curr.spanNext = spanNext;
+
+        if (spanNext > 0) {
+          totalSpanSum += spanNext;
+          spanCount++;
+          if (spanNext > maxSpan) maxSpan = spanNext;
+        }
+      }
+
+      renderMapElements(poleColor);
+      renderTables();
+      updateKPIs(totalCableLength, totalSpanSum, spanCount, maxSpan, poleCost, maxAttenuationGlobal, countCEtoCTO, countCTOtoCTO);
+    }
+
+    // RENDER MAP LAYERS & MARKERS (CE + ALL CTOS INCL LAST CTO)
+    function renderMapElements(poleColor) {
+      state.cableLayerGroup.clearLayers();
+      state.poleLayerGroup.clearLayers();
+
+      // Render Cable Polylines: Width 3, Red #ff0000
+      state.cableRecords.forEach((c) => {
+        const strokeColor = '#ff0000';
+        const strokeWidth = 3;
+        const tooltipClass = c.category === "CE a CTO" ? 'cable-tooltip-ce-cto' : 'cable-tooltip-cto-cto';
+
+        const polyline = L.polyline(c.coords, {
+          color: strokeColor,
+          weight: strokeWidth,
+          opacity: 0.95
+        }).addTo(state.cableLayerGroup);
+
+        // Required Tooltip format: "C-001 | CE 001 ➔ CTO-001 | 380m"
+        const labelText = `${c.id} | ${c.originShort} ➔ ${c.destShort} | ${c.length.toFixed(0)}m`;
+        polyline.bindTooltip(labelText, {
+          permanent: true,
+          direction: 'center',
+          className: tooltipClass
+        });
+
+        const cablePopupContent = `
+          <div class="p-1 space-y-1.5 font-sans text-xs min-w-[240px]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="font-bold text-rose-500 font-mono text-sm">${c.id}</span>
+              <span class="bg-rose-950 text-rose-300 border border-rose-500/50 text-[10px] px-2 py-0.5 rounded-full font-bold">${c.category}</span>
+            </div>
+            <div class="text-[11px] text-slate-300 space-y-1 pt-1 font-mono">
+              <p><strong>Origen ➔ Destino:</strong> <span class="text-slate-100 font-bold">${c.origin} ➔ ${c.destination}</span></p>
+              <p><strong>Longitud Tramo:</strong> <span class="text-rose-400 font-bold">${c.length.toFixed(1)} m</span></p>
+              <p><strong>Capacidad FO:</strong> <span class="text-purple-300 font-bold">${c.capacity}</span></p>
+              <p><strong>Tipo Cable:</strong> <span class="text-slate-200">${c.type}</span></p>
+              <p><strong>Atenuación G.984:</strong> <span class="text-emerald-400 font-bold">${c.attenuation.toFixed(2)} dB</span> (${c.attenuationCoeff} dB/km)</p>
+            </div>
+          </div>
+        `;
+        polyline.bindPopup(cablePopupContent);
+      });
+
+      // Render CEs and CTO Markers (using placemark_circle.png & #aaff00 color)
+      state.ctoRecords.forEach((elem) => {
+        const isCE = elem.type === 'Cabecera CE';
+        const iconBg = isCE ? '#c084fc' : '#aaff00';
+        const shadowColor = isCE ? '#c084fc' : '#aaff00';
+
+        const elemIcon = L.divIcon({
+          html: `<div style="background-color: ${iconBg}; border-radius: 50%; padding: 2px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px ${shadowColor}; border: 1.5px solid #000;">
+                   <img src="http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png" style="width: 18px; height: 18px;" />
+                 </div>`,
+          className: 'cto-marker-icon',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        const elemMarker = L.marker([elem.lat, elem.lng], { icon: elemIcon });
+        const badgeStyle = isCE ? 'bg-purple-950 text-purple-300 border-purple-500/50' : 'bg-lime-950 text-[#aaff00] border-[#aaff00]/50';
+
+        elemMarker.bindPopup(`
+          <div class="p-1 space-y-1 font-sans text-xs min-w-[200px]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1">
+              <span class="font-bold text-amber-400 font-mono text-sm">${elem.id}</span>
+              <span class="${badgeStyle} border text-[10px] px-2 py-0.5 rounded-full font-bold">${elem.type}</span>
+            </div>
+            <div class="text-[11px] text-slate-300 space-y-1 pt-1 font-mono">
+              <p><strong>Poste Asignado:</strong> <span class="text-amber-400 font-bold">${elem.assignedPoleId}</span></p>
+              <p><strong>Distancia a CE:</strong> <span class="text-sky-400 font-bold">${elem.distToCe.toFixed(1)} m</span></p>
+              <p><strong>Coordenadas:</strong> ${elem.lat.toFixed(6)}, ${elem.lng.toFixed(6)}</p>
+            </div>
+          </div>
+        `);
+        elemMarker.addTo(state.poleLayerGroup);
+      });
+
+      // Render Pole Markers
+      state.poles.forEach((p, idx) => {
+        const isFirstPole = (idx === 0);
+        const icon = createPoleIcon(poleColor, p.isCorner, p.isCTO, p.isCE, isFirstPole);
+        const marker = L.marker([p.lat, p.lng], { icon: icon });
+
+        let roleBadge = `<span class="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full border border-slate-700">Poste Intermedio</span>`;
+        if (isFirstPole) {
+          roleBadge = `<span class="bg-emerald-950 text-emerald-300 border border-emerald-500/50 text-[10px] px-2 py-0.5 rounded-full font-bold">ORIGEN (${p.id})</span>`;
+        } else if (p.isCE) {
+          roleBadge = `<span class="bg-purple-950 text-purple-300 border border-purple-500/50 text-[10px] px-2 py-0.5 rounded-full font-bold">Poste ${p.ceName || 'CE 001'}</span>`;
+        } else if (p.isCTO) {
+          roleBadge = `<span class="bg-lime-950 text-[#aaff00] border border-[#aaff00]/50 text-[10px] px-2 py-0.5 rounded-full font-bold">Poste ${p.ctoName || 'CTO'}</span>`;
+        } else if (p.isCorner) {
+          roleBadge = `<span class="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] px-2 py-0.5 rounded-full font-semibold">Vértice (${p.angle.toFixed(1)}°)</span>`;
         }
 
-        // --- UNDO SYSTEM ---
-        function saveUndoState() {
-            const snapshot = {
-                clusterNum: appState.clusterNum,
-                ceName: appState.ceName,
-                ctoStart: appState.ctoStart,
-                cableStart: appState.cableStart,
-                poleStart: appState.poleStart,
-                perimeterPolygon: appState.perimeterPolygon ? JSON.parse(JSON.stringify(appState.perimeterPolygon)) : null,
-                ceLatLng: appState.ceLatLng ? { ...appState.ceLatLng } : null,
-                ctos: appState.ctos.map(c => ({ id: c.id, name: c.name, latlng: { ...c.latlng } })),
-                cables: appState.cables.map(cb => ({ id: cb.id, name: cb.name, latlngs: cb.latlngs.map(l => ({ ...l })) })),
-                poles: appState.poles.map(p => ({ id: p.id, name: p.name, latlng: { ...p.latlng } }))
-            };
-            undoStack.push(JSON.stringify(snapshot));
-            if (undoStack.length > 25) undoStack.shift();
+        let multiPassBadge = '';
+        if (p.isDoublePass) {
+          multiPassBadge = `<span class="bg-indigo-950 text-indigo-300 border border-indigo-500/50 text-[10px] px-2 py-0.5 rounded-full font-bold block mt-1">✓ Poste Compartido (Ida/Vuelta)</span>`;
         }
 
-        function undoAction() {
-            if (undoStack.length <= 1) return;
-            undoStack.pop(); // Remove current
-            const prev = JSON.parse(undoStack[undoStack.length - 1]);
-            restoreFromSnapshot(prev);
+        const popupHtml = `
+          <div class="p-1 space-y-1.5 font-sans text-xs min-w-[210px]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <span class="font-bold text-amber-400 font-mono text-sm">${p.id}</span>
+              ${roleBadge}
+            </div>
+            ${multiPassBadge}
+            <div class="text-[11px] text-slate-300 space-y-1 pt-1">
+              <p><strong>Tipo Material:</strong> <span class="text-slate-200">${p.type}</span></p>
+              <p><strong>Coordenadas:</strong> <span class="font-mono text-slate-200">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span></p>
+              <p><strong>Vano Anterior:</strong> <span class="font-mono text-emerald-400 font-bold">${p.spanPrev > 0 ? p.spanPrev.toFixed(1) + ' m' : 'N/A (Origen)'}</span></p>
+              <p><strong>Vano Siguiente:</strong> <span class="font-mono text-emerald-400 font-bold">${p.spanNext > 0 ? p.spanNext.toFixed(1) + ' m' : 'N/A (Fin Linea)'}</span></p>
+            </div>
+          </div>
+        `;
+
+        marker.bindPopup(popupHtml);
+        marker.addTo(state.poleLayerGroup);
+      });
+    }
+
+    // RENDER DATA TABLES (3 TABS)
+    function renderTables() {
+      const poleTbody = document.getElementById('pole-table-body');
+      const cableTbody = document.getElementById('cable-table-body');
+      const ctoTbody = document.getElementById('cto-table-body');
+      
+      const poleBadge = document.getElementById('pole-count-badge');
+      const cableBadge = document.getElementById('cable-count-badge');
+      const ctoBadge = document.getElementById('cto-count-badge');
+
+      const btnKml = document.getElementById('btn-export-kml');
+      const btnPolesCsv = document.getElementById('btn-export-poles-csv');
+      const btnCablesCsv = document.getElementById('btn-export-cables-csv');
+      const btnCtosCsv = document.getElementById('btn-export-ctos-csv');
+
+      poleBadge.textContent = state.poles.length;
+      cableBadge.textContent = state.cableRecords.length;
+      ctoBadge.textContent = state.ctoRecords.length;
+
+      const hasData = state.poles.length > 0;
+      btnKml.disabled = !hasData;
+      btnPolesCsv.disabled = !hasData;
+      btnCablesCsv.disabled = !hasData;
+      btnCtosCsv.disabled = state.ctoRecords.length === 0;
+
+      // Tab 1: Poles Table
+      if (state.poles.length === 0) {
+        poleTbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-500 font-sans italic">No hay datos cargados. Arrastra tu archivo .KMZ o haz clic en "Cargar Trazado Tevragh Zeina".</td></tr>`;
+      } else {
+        poleTbody.innerHTML = state.poles.map((p, idx) => {
+          let roleText = '<span class="text-slate-400">Intermedio</span>';
+          if (p.isCE) roleText = `<span class="text-purple-400 font-bold">Poste ${p.ceName || 'CE 001'}</span>`;
+          else if (p.isCTO) roleText = `<span class="text-emerald-400 font-bold">Poste con ${p.ctoName || 'CTO'}</span>`;
+          else if (p.isCorner) roleText = `<span class="text-amber-300 font-semibold">Vértice/Esquina (${p.angle.toFixed(1)}°)</span>`;
+
+          if (p.isDoublePass) roleText += ' <span class="text-indigo-400 text-[10px] font-bold">[Ida/Vuelta]</span>';
+
+          return `
+            <tr class="hover:bg-slate-800/60 transition cursor-pointer" onclick="focusPole(${idx})">
+              <td class="p-2 font-bold text-amber-400 font-mono">${p.id}</td>
+              <td class="p-2">${roleText}</td>
+              <td class="p-2 text-slate-300 font-mono text-[10px]">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</td>
+              <td class="p-2 text-emerald-400 font-mono">${p.spanPrev > 0 ? p.spanPrev.toFixed(1) + ' m' : '-'}</td>
+              <td class="p-2 text-emerald-400 font-mono">${p.spanNext > 0 ? p.spanNext.toFixed(1) + ' m' : '-'}</td>
+              <td class="p-2 text-slate-300 font-mono">${p.angle > 0 ? p.angle.toFixed(1) + '°' : '-'}</td>
+              <td class="p-2 text-center">
+                <button onclick="event.stopPropagation(); focusPole(${idx})" class="p-1 hover:bg-slate-700 rounded-lg text-amber-400 transition">
+                  <i data-lucide="locate" class="w-3.5 h-3.5"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // Tab 2: Cables Table
+      if (state.cableRecords.length === 0) {
+        cableTbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-500 font-sans italic">No hay trazados de cable cargados.</td></tr>`;
+      } else {
+        cableTbody.innerHTML = state.cableRecords.map((c, idx) => {
+          const isCEtoCTO = c.category === "CE a CTO";
+          const catBadge = isCEtoCTO 
+            ? `<span class="bg-sky-950 text-sky-300 border border-sky-500/50 text-[10px] px-2 py-0.5 rounded-full font-bold">CE ➔ CTO</span>`
+            : `<span class="bg-amber-950 text-amber-300 border border-amber-500/50 text-[10px] px-2 py-0.5 rounded-full font-bold">CTO ➔ CTO</span>`;
+
+          return `
+            <tr class="hover:bg-slate-800/60 transition cursor-pointer" onclick="focusCable(${idx})">
+              <td class="p-2 font-bold text-cyan-400 font-mono">${c.id}</td>
+              <td class="p-2">${catBadge}</td>
+              <td class="p-2 text-slate-200 font-bold font-mono">${c.origin} ➔ ${c.destination}</td>
+              <td class="p-2 text-amber-400 font-mono font-bold">${c.length.toFixed(1)} m</td>
+              <td class="p-2 text-purple-300 font-bold">${c.capacity}</td>
+              <td class="p-2 text-emerald-400 font-mono font-bold">${c.attenuation.toFixed(2)} dB</td>
+              <td class="p-2 text-center">
+                <button onclick="event.stopPropagation(); focusCable(${idx})" class="p-1 hover:bg-slate-700 rounded-lg text-cyan-400 transition">
+                  <i data-lucide="locate" class="w-3.5 h-3.5"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // Tab 3: CTOs y CE Table
+      if (state.ctoRecords.length === 0) {
+        ctoTbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 font-sans italic">No hay CEs ni cajas CTO / NAP cargadas.</td></tr>`;
+      } else {
+        ctoTbody.innerHTML = state.ctoRecords.map((elem, idx) => {
+          const isCE = elem.type === 'Cabecera CE';
+          const typeBadge = isCE 
+            ? `<span class="text-purple-400 font-bold">Cabecera CE</span>`
+            : `<span class="text-emerald-400 font-bold">Caja CTO / NAP</span>`;
+
+          return `
+            <tr class="hover:bg-slate-800/60 transition cursor-pointer" onclick="focusCTO(${idx})">
+              <td class="p-2 font-bold text-amber-400 font-mono">${elem.id}</td>
+              <td class="p-2">${typeBadge}</td>
+              <td class="p-2 text-slate-300 font-mono text-[10px]">${elem.lat.toFixed(5)}, ${elem.lng.toFixed(5)}</td>
+              <td class="p-2 font-bold text-amber-400 font-mono">${elem.assignedPoleId}</td>
+              <td class="p-2 text-sky-400 font-mono font-bold">${elem.distToCe.toFixed(1)} m</td>
+              <td class="p-2 text-center">
+                <button onclick="event.stopPropagation(); focusCTO(${idx})" class="p-1 hover:bg-slate-700 rounded-lg text-emerald-400 transition">
+                  <i data-lucide="locate" class="w-3.5 h-3.5"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // FOCUS POLE ON MAP
+    function focusPole(idx) {
+      const p = state.poles[idx];
+      if (!p || !state.map) return;
+      state.map.setView([p.lat, p.lng], 18, { animate: true });
+
+      state.poleLayerGroup.eachLayer(layer => {
+        if (layer.getLatLng && layer.getLatLng().lat === p.lat && layer.getLatLng().lng === p.lng) {
+          layer.openPopup();
+        }
+      });
+    }
+
+    // FOCUS CABLE ON MAP
+    function focusCable(idx) {
+      const c = state.cableRecords[idx];
+      if (!c || !state.map || c.coords.length === 0) return;
+      const bounds = L.latLngBounds(c.coords);
+      state.map.fitBounds(bounds, { padding: [60, 60] });
+    }
+
+    // FOCUS CTO / CE ON MAP
+    function focusCTO(idx) {
+      const elem = state.ctoRecords[idx];
+      if (!elem || !state.map) return;
+      state.map.setView([elem.lat, elem.lng], 18, { animate: true });
+    }
+
+    // UPDATE KPI METRIC CARDS
+    function updateKPIs(totalCableLength, totalSpanSum, spanCount, maxSpan, poleCost, maxAttenuationGlobal, countCEtoCTO, countCTOtoCTO) {
+      const totalPoles = state.poles.length;
+      const capex = totalPoles * poleCost;
+
+      const cePoles = state.poles.filter(p => p.isCE).length;
+      const ctoPoles = state.poles.filter(p => p.isCTO && !p.isCE).length;
+      const cornerPoles = state.poles.filter(p => p.isCorner && !p.isCTO && !p.isCE).length;
+
+      document.getElementById('kpi-cable-len').textContent = `${totalCableLength.toFixed(0)} m`;
+      document.getElementById('kpi-total-poles').textContent = totalPoles;
+      document.getElementById('kpi-ce-cto-cables').textContent = countCEtoCTO;
+      document.getElementById('kpi-total-ctos').textContent = state.ctoRecords.length;
+      document.getElementById('kpi-capex').textContent = `$ ${capex.toLocaleString('en-US')}`;
+
+      document.getElementById('kpi-max-attenuation').textContent = `${maxAttenuationGlobal.toFixed(2)} dB`;
+      document.getElementById('kpi-ce-poles').textContent = cePoles;
+      document.getElementById('kpi-cto-poles').textContent = ctoPoles;
+      document.getElementById('kpi-corner-poles').textContent = cornerPoles;
+    }
+
+    // AUTO ZOOM MAP TO BOUNDS
+    function zoomToFit() {
+      if (!state.map) return;
+      const bounds = L.latLngBounds([]);
+      state.cables.forEach(c => {
+        c.forEach(pt => bounds.extend(pt));
+      });
+      if (bounds.isValid()) {
+        state.map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+
+    // EXPORT PROCESSED KML FILE WITH STRICT LAYER NAMES:
+    // Capa 1: CTOS Y CE
+    // Capa 2: CABLEADO
+    // Capa 3: [param-folder-name] - POSTES
+    function exportKML() {
+      const folderName = document.getElementById('param-folder-name')?.value.trim() || "CL 02";
+      const poleColor = document.getElementById('param-pole-color').value || "#8B4513";
+      
+      const r = poleColor.substr(1, 2);
+      const g = poleColor.substr(3, 2);
+      const b = poleColor.substr(5, 2);
+      const kmlPoleColor = `ff${b}${g}${r}`;
+
+      let kml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+      kml += `<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n`;
+      kml += `  <name>${folderName}</name>\n`;
+
+      // Style 1: CTOS Y CE (#aaff00 -> KML AABBGGRR: ff00ffaa, Scale 1.2)
+      kml += `  <Style id="ctoCeStyle">\n`;
+      kml += `    <IconStyle>\n`;
+      kml += `      <color>ff00ffaa</color>\n`;
+      kml += `      <scale>1.2</scale>\n`;
+      kml += `      <Icon>\n`;
+      kml += `        <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>\n`;
+      kml += `      </Icon>\n`;
+      kml += `    </IconStyle>\n`;
+      kml += `  </Style>\n`;
+
+      // Style 2: CABLEADO (Width 3, Red #ff0000 -> KML AABBGGRR: ff0000ff)
+      kml += `  <Style id="redCableStyle">\n`;
+      kml += `    <LineStyle>\n`;
+      kml += `      <color>ff0000ff</color>\n`;
+      kml += `      <width>3</width>\n`;
+      kml += `    </LineStyle>\n`;
+      kml += `  </Style>\n`;
+
+      // Style 3: POSTES (#8B4513, Scale 0.9)
+      kml += `  <Style id="brownPoleStyle">\n`;
+      kml += `    <IconStyle>\n`;
+      kml += `      <color>${kmlPoleColor}</color>\n`;
+      kml += `      <scale>0.9</scale>\n`;
+      kml += `      <Icon>\n`;
+      kml += `        <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>\n`;
+      kml += `      </Icon>\n`;
+      kml += `    </IconStyle>\n`;
+      kml += `  </Style>\n`;
+
+      // CAPA 1: STRICT NAME "CTOS Y CE"
+      kml += `  <Folder>\n    <name>CTOS Y CE</name>\n`;
+      state.ctoRecords.forEach(elem => {
+        kml += `    <Placemark>\n`;
+        kml += `      <name>${elem.id}</name>\n`;
+        kml += `      <styleUrl>#ctoCeStyle</styleUrl>\n`;
+        kml += `      <description>Tipo: ${elem.type}\nPoste Asignado: ${elem.assignedPoleId}\nDistancia a CE: ${elem.distToCe.toFixed(1)}m</description>\n`;
+        kml += `      <Point><coordinates>${elem.lng},${elem.lat},0</coordinates></Point>\n`;
+        kml += `    </Placemark>\n`;
+      });
+      kml += `  </Folder>\n`;
+
+      // CAPA 2: STRICT NAME "CABLEADO"
+      kml += `  <Folder>\n    <name>CABLEADO</name>\n`;
+      state.cableRecords.forEach((c) => {
+        kml += `    <Placemark>\n      <name>${c.id} (${c.origin} ➔ ${c.destination})</name>\n`;
+        kml += `      <styleUrl>#redCableStyle</styleUrl>\n`;
+        kml += `      <description>Categoria: ${c.categoryTag}\nCapacidad: ${c.capacity}\nTipo: ${c.type}\nLongitud: ${c.length.toFixed(1)}m\nAtenuacion G.984: ${c.attenuation.toFixed(2)}dB</description>\n`;
+        kml += `      <LineString>\n        <coordinates>\n`;
+        c.coords.forEach(pt => { kml += `          ${pt[1]},${pt[0]},0\n`; });
+        kml += `        </coordinates>\n      </LineString>\n    </Placemark>\n`;
+      });
+      kml += `  </Folder>\n`;
+
+      // CAPA 3: STRICT NAME "[param-folder-name] - POSTES"
+      kml += `  <Folder>\n    <name>${folderName} - POSTES</name>\n`;
+      state.poles.forEach(p => {
+        let roleName = 'Intermedio paso';
+        if (p.isCE) roleName = `Poste ${p.ceName || 'CE 001'} Cabecera Origen`;
+        else if (p.isCTO) roleName = `Poste con ${p.ctoName || 'CTO'}`;
+        else if (p.isCorner) roleName = `Vértice / Esquina (${p.angle.toFixed(1)}°)`;
+
+        kml += `    <Placemark>\n`;
+        kml += `      <name>${p.id}</name>\n`;
+        kml += `      <styleUrl>#brownPoleStyle</styleUrl>\n`;
+        kml += `      <description>Rol: ${roleName}\nTipo: ${p.type}\nVano Ant: ${p.spanPrev.toFixed(1)}m\nVano Sig: ${p.spanNext.toFixed(1)}m</description>\n`;
+        kml += `      <Point><coordinates>${p.lng},${p.lat},0</coordinates></Point>\n`;
+        kml += `    </Placemark>\n`;
+      });
+      kml += `  </Folder>\n`;
+
+      kml += `</Document>\n</kml>`;
+
+      const filename = `${folderName.replace(/[^a-z0-9_-]/gi, '_')}_Posteria_Cables_CTOs.kml`;
+      downloadFile(kml, filename, 'application/vnd.google-earth.kml+xml');
+    }
+
+    // EXPORT INVENTORY CSV FILES
+    function exportPolesCSV() {
+      if (state.poles.length === 0) return;
+      const folderName = document.getElementById('param-folder-name')?.value.trim() || "CL 02";
+
+      let csv = "ID_Poste,Proyecto_Carpeta,Rol,Tipo_Material,Latitud,Longitud,Vano_Anterior_m,Vano_Siguiente_m,Angulo_Giro\n";
+      state.poles.forEach(p => {
+        let role = "Intermedio_Paso";
+        if (p.isCE) role = "Poste_CE_Cabecera";
+        else if (p.isCTO) role = "Poste_Con_CTO";
+        else if (p.isCorner) role = "Vertice_Esquina";
+
+        csv += `${p.id},"${folderName}",${role},"${p.type}",${p.lat},${p.lng},${p.spanPrev.toFixed(1)},${p.spanNext.toFixed(1)},${p.angle.toFixed(1)}\n`;
+      });
+
+      const filename = `${folderName.replace(/[^a-z0-9_-]/gi, '_')}_Inventario_Postes.csv`;
+      downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+    }
+
+    function exportCablesCSV() {
+      if (state.cableRecords.length === 0) return;
+      const folderName = document.getElementById('param-folder-name')?.value.trim() || "CL 02";
+
+      let csv = "ID_Cable,Proyecto_Carpeta,Categoria_Tecnica,Origen,Destino,Capacidad_FO,Tipo_Cable,Longitud_m,Atenuacion_G984_dB,Atenuacion_dB_km\n";
+      state.cableRecords.forEach(c => {
+        csv += `${c.id},"${folderName}","${c.category}","${c.origin}","${c.destination}","${c.capacity}","${c.type}",${c.length.toFixed(1)},${c.attenuation.toFixed(2)},${c.attenuationCoeff}\n`;
+      });
+
+      const filename = `${folderName.replace(/[^a-z0-9_-]/gi, '_')}_Inventario_Cables.csv`;
+      downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+    }
+
+    function exportCtosCSV() {
+      if (state.ctoRecords.length === 0) return;
+      const folderName = document.getElementById('param-folder-name')?.value.trim() || "CL 02";
+
+      let csv = "ID_Elemento,Tipo_Nodo,Proyecto_Carpeta,Latitud,Longitud,Poste_Asignado,Distancia_Cabecera_m\n";
+      state.ctoRecords.forEach(elem => {
+        csv += `${elem.id},"${elem.type}","${folderName}",${elem.lat},${elem.lng},${elem.assignedPoleId},${elem.distToCe.toFixed(1)}\n`;
+      });
+
+      const filename = `${folderName.replace(/[^a-z0-9_-]/gi, '_')}_Inventario_CTOs_y_CE.csv`;
+      downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+    }
+
+    // GENERIC BLOB DOWNLOAD HELPER
+    function downloadFile(content, filename, contentType) {
+      const blob = new Blob([content], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    }
+
+    // UPDATE REVERSE UI STATE LABELS
+    function updateReverseUI() {
+      const btnText = document.getElementById('reverse-btn-text');
+      const statusLabel = document.getElementById('reverse-status-label');
+
+      if (state.isReversed) {
+        if (btnText) btnText.textContent = "Restaurar Sentido Original";
+        if (statusLabel) {
+          statusLabel.textContent = "Estado: Sentido Invertido (Origen P-001 / C-001 al Extremo Opuesto)";
+          statusLabel.className = "text-[10px] text-amber-300 font-bold mt-1 text-center font-mono";
+        }
+      } else {
+        if (btnText) btnText.textContent = "Invertir Sentido (P-001 / C-001)";
+        if (statusLabel) {
+          statusLabel.textContent = "Estado: Sentido Directo (Origen P-001 en Cabecera CE)";
+          statusLabel.className = "text-[10px] text-slate-400 mt-1 text-center font-mono";
+        }
+      }
+    }
+
+    // INITIALIZE LEAFLET MAP
+    function initMap() {
+      state.map = L.map('map', {
+        zoomControl: false
+      }).setView([18.1065, -15.9785], 15);
+
+      L.control.zoom({ position: 'bottomright' }).addTo(state.map);
+
+      state.streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        maxZoom: 20
+      });
+
+      state.satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        attribution: '&copy; Google Maps Satellite',
+        maxZoom: 20
+      });
+
+      state.streetLayer.addTo(state.map);
+
+      state.cableLayerGroup = L.layerGroup().addTo(state.map);
+      state.poleLayerGroup = L.layerGroup().addTo(state.map);
+
+      // MANUAL DRAWING
+      state.map.on('click', (e) => {
+        if (!state.isDrawing) return;
+        const pt = [e.latlng.lat, e.latlng.lng];
+        state.drawPoints.push(pt);
+
+        if (state.tempDrawPolyline) {
+          state.tempDrawPolyline.setLatLngs(state.drawPoints);
+        } else {
+          state.tempDrawPolyline = L.polyline(state.drawPoints, {
+            color: '#f59e0b',
+            weight: 4,
+            dashArray: '6, 6'
+          }).addTo(state.map);
+        }
+      });
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // EVENT LISTENERS BINDING
+    function setupEventListeners() {
+      document.getElementById('param-target-span').addEventListener('input', (e) => {
+        document.getElementById('target-span-val').textContent = `${e.target.value} m`;
+      });
+      document.getElementById('param-min-span')?.addEventListener('input', (e) => {
+        document.getElementById('min-span-val').textContent = `${e.target.value} m`;
+      });
+      document.getElementById('param-angle')?.addEventListener('input', (e) => {
+        document.getElementById('angle-val').textContent = `${e.target.value}°`;
+      });
+      document.getElementById('param-pole-color').addEventListener('input', (e) => {
+        document.getElementById('color-hex-label').textContent = e.target.value.toUpperCase();
+      });
+
+      // Synchronize input fields with modal
+      document.getElementById('param-pole-start-num')?.addEventListener('change', (e) => {
+        document.getElementById('modal-pole-start-num').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+      document.getElementById('param-pole-prefix')?.addEventListener('input', (e) => {
+        document.getElementById('modal-pole-prefix').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+
+      document.getElementById('param-cable-start-num')?.addEventListener('change', (e) => {
+        document.getElementById('modal-cable-start-num').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+      document.getElementById('param-cable-prefix')?.addEventListener('input', (e) => {
+        document.getElementById('modal-cable-prefix').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+
+      document.getElementById('param-cto-start-num')?.addEventListener('change', (e) => {
+        document.getElementById('modal-cto-start-num').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+      document.getElementById('param-cto-prefix')?.addEventListener('input', (e) => {
+        document.getElementById('modal-cto-prefix').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+
+      document.getElementById('param-cable-capacity')?.addEventListener('change', (e) => {
+        document.getElementById('modal-cable-capacity').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+      document.getElementById('param-cable-attenuation')?.addEventListener('change', (e) => {
+        document.getElementById('modal-cable-attenuation').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+      document.getElementById('param-cable-type')?.addEventListener('change', (e) => {
+        document.getElementById('modal-cable-type').value = e.target.value;
+        if (state.cables.length > 0) processCablePoles();
+      });
+
+      // Quick Config Modal Open & Apply
+      const modal = document.getElementById('modal-numbering');
+      document.getElementById('btn-open-num-modal').addEventListener('click', () => {
+        document.getElementById('modal-pole-prefix').value = document.getElementById('param-pole-prefix').value;
+        document.getElementById('modal-pole-start-num').value = document.getElementById('param-pole-start-num').value;
+        document.getElementById('modal-cable-prefix').value = document.getElementById('param-cable-prefix').value;
+        document.getElementById('modal-cable-start-num').value = document.getElementById('param-cable-start-num').value;
+        document.getElementById('modal-cto-prefix').value = document.getElementById('param-cto-prefix').value;
+        document.getElementById('modal-cto-start-num').value = document.getElementById('param-cto-start-num').value;
+        document.getElementById('modal-cable-capacity').value = document.getElementById('param-cable-capacity').value;
+        document.getElementById('modal-cable-attenuation').value = document.getElementById('param-cable-attenuation').value;
+        document.getElementById('modal-cable-type').value = document.getElementById('param-cable-type').value;
+
+        modal.classList.remove('hidden');
+      });
+
+      document.getElementById('btn-close-modal').addEventListener('click', () => {
+        modal.classList.add('hidden');
+      });
+
+      document.getElementById('btn-apply-modal').addEventListener('click', () => {
+        document.getElementById('param-pole-prefix').value = document.getElementById('modal-pole-prefix').value;
+        document.getElementById('param-pole-start-num').value = document.getElementById('modal-pole-start-num').value;
+        document.getElementById('param-cable-prefix').value = document.getElementById('modal-cable-prefix').value;
+        document.getElementById('param-cable-start-num').value = document.getElementById('modal-cable-start-num').value;
+        document.getElementById('param-cto-prefix').value = document.getElementById('modal-cto-prefix').value;
+        document.getElementById('param-cto-start-num').value = document.getElementById('modal-cto-start-num').value;
+        document.getElementById('param-cable-capacity').value = document.getElementById('modal-cable-capacity').value;
+        document.getElementById('param-cable-attenuation').value = document.getElementById('modal-cable-attenuation').value;
+        document.getElementById('param-cable-type').value = document.getElementById('modal-cable-type').value;
+
+        modal.classList.add('hidden');
+        if (state.cables.length > 0) processCablePoles();
+        showNotification("Parámetros y números iniciales aplicados correctamente.", 'success');
+      });
+
+      // Reverse direction button
+      document.getElementById('btn-reverse-direction').addEventListener('click', () => {
+        if (state.cables.length === 0) {
+          showNotification("Carga primero un trazado para invertir su sentido.", 'error');
+          return;
         }
 
-        function restoreFromSnapshot(snapshot) {
-            appState.clusterNum = snapshot.clusterNum;
-            appState.ceName = snapshot.ceName;
-            appState.ctoStart = snapshot.ctoStart;
-            appState.cableStart = snapshot.cableStart;
-            appState.poleStart = snapshot.poleStart;
-            appState.perimeterPolygon = snapshot.perimeterPolygon;
-            appState.ceLatLng = snapshot.ceLatLng;
+        state.isReversed = !state.isReversed;
+        updateReverseUI();
+        processCablePoles();
 
-            renderAllLayersFromData(snapshot.ctos, snapshot.cables, snapshot.poles);
+        showNotification(
+          state.isReversed 
+            ? "Sentido del trazado invertido. El poste P-001 y cable C-001 se reubicaron en el extremo opuesto." 
+            : "Sentido del trazado restaurado al origen inicial.", 
+          'success'
+        );
+      });
+
+      document.getElementById('btn-recalculate').addEventListener('click', () => {
+        if (state.cables.length === 0) {
+          showNotification("Por favor, carga un archivo KMZ/KML o dibuja un cable primero.", 'error');
+          return;
         }
+        processCablePoles();
+        showNotification("Ubicación, vanos y correlación de CTOs recalculados correctamente.", 'success');
+      });
 
-        // --- KMZ & KML FILE PARSER ---
-        function setupDragAndDrop() {
-            const dropZone = document.getElementById('dropZone');
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropZone.addEventListener(eventName, preventDefaults, false);
-            });
-            function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
-            
-            dropZone.addEventListener('drop', (e) => {
-                const dt = e.dataTransfer;
-                const files = dt.files;
-                if (files.length) parseAndLoadFile(files[0]);
-            });
+      document.getElementById('btn-load-sample').addEventListener('click', () => {
+        document.getElementById('param-folder-name').value = "CL 02";
+        document.getElementById('param-pole-prefix').value = "P-";
+        document.getElementById('param-pole-start-num').value = "1";
+        document.getElementById('param-cable-prefix').value = "C-";
+        document.getElementById('param-cable-start-num').value = "1";
+        document.getElementById('param-cto-prefix').value = "CTO-";
+        document.getElementById('param-cto-start-num').value = "1";
+        state.isReversed = false;
+        updateReverseUI();
+
+        state.cables = [NOUAKCHOTT_SAMPLE];
+        state.cePoints = SAMPLE_CE_POINTS;
+        state.rawCtoPoints = SAMPLE_CTO_POINTS;
+        processCablePoles();
+        zoomToFit();
+        showNotification("Trazado muestra cargado con CE 001, CTOs intermedias y CTO-004 FINAL.", 'success');
+      });
+
+      // 3-Tab Controls
+      const tabPoles = document.getElementById('tab-btn-poles');
+      const tabCables = document.getElementById('tab-btn-cables');
+      const tabCtos = document.getElementById('tab-btn-ctos');
+
+      const contentPoles = document.getElementById('tab-content-poles');
+      const contentCables = document.getElementById('tab-content-cables');
+      const contentCtos = document.getElementById('tab-content-ctos');
+
+      tabPoles.addEventListener('click', () => {
+        state.activeTab = 'poles';
+        tabPoles.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 border border-amber-400 flex items-center gap-1.5 transition';
+        tabCables.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 flex items-center gap-1.5 transition';
+        tabCtos.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 flex items-center gap-1.5 transition';
+        contentPoles.classList.remove('hidden');
+        contentCables.classList.add('hidden');
+        contentCtos.classList.add('hidden');
+      });
+
+      tabCables.addEventListener('click', () => {
+        state.activeTab = 'cables';
+        tabCables.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 border border-cyan-400 flex items-center gap-1.5 transition';
+        tabPoles.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 flex items-center gap-1.5 transition';
+        tabCtos.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 flex items-center gap-1.5 transition';
+        contentCables.classList.remove('hidden');
+        contentPoles.classList.add('hidden');
+        contentCtos.classList.add('hidden');
+      });
+
+      tabCtos.addEventListener('click', () => {
+        state.activeTab = 'ctos';
+        tabCtos.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 border border-emerald-400 flex items-center gap-1.5 transition';
+        tabPoles.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 flex items-center gap-1.5 transition';
+        tabCables.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 flex items-center gap-1.5 transition';
+        contentCtos.classList.remove('hidden');
+        contentPoles.classList.add('hidden');
+        contentCables.classList.add('hidden');
+      });
+
+      const dropZone = document.getElementById('drop-zone');
+      const fileInput = document.getElementById('file-input');
+
+      dropZone.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-amber-500', 'bg-slate-900');
+      });
+      dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('border-amber-500', 'bg-slate-900');
+      });
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-amber-500', 'bg-slate-900');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleFile(e.dataTransfer.files[0]);
         }
+      });
 
-        function handleFileSelect(e) {
-            const files = e.target.files;
-            if (files.length) parseAndLoadFile(files[0]);
+      document.getElementById('btn-export-kml').addEventListener('click', exportKML);
+      document.getElementById('btn-export-poles-csv').addEventListener('click', exportPolesCSV);
+      document.getElementById('btn-export-cables-csv').addEventListener('click', exportCablesCSV);
+      document.getElementById('btn-export-ctos-csv').addEventListener('click', exportCtosCSV);
+
+      const satBtn = document.getElementById('btn-toggle-satellite');
+      satBtn.addEventListener('click', () => {
+        state.isSatellite = !state.isSatellite;
+        if (state.isSatellite) {
+          state.map.removeLayer(state.streetLayer);
+          state.satLayer.addTo(state.map);
+          satBtn.classList.replace('bg-slate-800', 'bg-amber-500');
+          satBtn.classList.replace('text-slate-100', 'text-slate-950');
+          document.getElementById('satellite-btn-text').textContent = 'Vista Callejero';
+          showNotification("Cambiado a Vista Satélite Híbrida.", 'info');
+        } else {
+          state.map.removeLayer(state.satLayer);
+          state.streetLayer.addTo(state.map);
+          satBtn.classList.replace('bg-amber-500', 'bg-slate-800');
+          satBtn.classList.replace('text-slate-950', 'text-slate-100');
+          document.getElementById('satellite-btn-text').textContent = 'Vista Satélite';
+          showNotification("Cambiado a Vista Callejero Vectorial.", 'info');
         }
+      });
 
-        async function parseAndLoadFile(file) {
-            try {
-                let kmlText = "";
-                if (file.name.toLowerCase().endsWith('.kmz')) {
-                    const zip = await JSZip.loadAsync(file);
-                    const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
-                    if (!kmlFile) throw new Error("No se encontró archivo doc.kml en el paquete KMZ.");
-                    kmlText = await zip.files[kmlFile].async("string");
-                } else {
-                    kmlText = await file.text();
-                }
-                processLoadedKMLText(kmlText);
-            } catch (err) {
-                alert("Error al cargar archivo KMZ/KML: " + err.message);
-            }
+      const drawBtn = document.getElementById('btn-toggle-draw');
+      drawBtn.addEventListener('click', () => {
+        state.isDrawing = !state.isDrawing;
+        if (state.isDrawing) {
+          state.drawPoints = [];
+          drawBtn.classList.replace('bg-slate-800', 'bg-amber-500');
+          drawBtn.classList.replace('text-slate-100', 'text-slate-950');
+          document.getElementById('draw-btn-text').textContent = 'Finalizar Dibujo Cable';
+          showNotification("Haz clic en el mapa para marcar los puntos del cable aéreo.", 'info');
+        } else {
+          drawBtn.classList.replace('bg-amber-500', 'bg-slate-800');
+          drawBtn.classList.replace('text-slate-950', 'text-slate-100');
+          document.getElementById('draw-btn-text').textContent = 'Dibujar Cable Manual';
+
+          if (state.drawPoints.length > 1) {
+            state.cables.push(state.drawPoints);
+            processCablePoles();
+            showNotification("Nuevo tramo de cable agregado manualmente.", 'success');
+          }
+          if (state.tempDrawPolyline) {
+            state.map.removeLayer(state.tempDrawPolyline);
+            state.tempDrawPolyline = null;
+          }
+          state.drawPoints = [];
         }
-
-        function processLoadedKMLText(kmlText) {
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(kmlText, "text/xml");
-            
-            // Regex coordinate extraction fallback
-            const coordTags = xmlDoc.getElementsByTagName("coordinates");
-            let polygonCoords = [];
-
-            for (let i = 0; i < coordTags.length; i++) {
-                const text = coordTags[i].textContent.trim();
-                const pairs = text.split(/\s+/);
-                const pts = [];
-                pairs.forEach(p => {
-                    const parts = p.split(',').map(Number);
-                    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                        pts.push([parts[0], parts[1]]);
-                    }
-                });
-                if (pts.length >= 4) { // Valid closed polygon
-                    polygonCoords = pts;
-                    break;
-                }
-            }
-
-            if (polygonCoords.length < 4) {
-                alert("No se encontró un polígono cerrado en el archivo KML/KMZ.");
-                return;
-            }
-
-            const polyGeoJSON = turf.polygon([polygonCoords]);
-            appState.perimeterPolygon = polyGeoJSON.geometry;
-
-            drawnItems.clearLayers();
-            const polyLayer = L.geoJSON(polyGeoJSON, {
-                style: { color: '#f59e0b', weight: 2, dashArray: '5, 5', fillOpacity: 0.1 }
-            });
-            drawnItems.addLayer(polyLayer);
-            map.fitBounds(polyLayer.getBounds(), { padding: [30, 30] });
-
-            autoGenerateLayoutFromPerimeter(polyGeoJSON.geometry);
-        }
-
-        // --- AUTOMATED 8-CTO MATRIX + SIDEWALK ROUTING ENGINE ---
-        function autoGenerateLayoutFromPerimeter(polyGeoJSON) {
-            saveUndoState();
-            
-            const bbox = turf.bbox(polyGeoJSON);
-            const polyBoundary = turf.polygonToLine(polyGeoJSON);
-            
-            // 1. Generate 2x4 matrix of 8 CTO points inside perimeter
-            const ctoCoords = [];
-            const grid = turf.pointGrid(bbox, 0.18, { units: 'kilometers' });
-            grid.features.forEach(f => {
-                if (turf.booleanPointInPolygon(f, polyGeoJSON)) {
-                    ctoCoords.push(f.geometry.coordinates);
-                }
-            });
-
-            // Ensure exactly 8 CTOs
-            let finalCTOLatLngs = [];
-            if (ctoCoords.length >= 8) {
-                const step = Math.floor(ctoCoords.length / 8);
-                for (let i = 0; i < 8; i++) {
-                    const pt = ctoCoords[i * step];
-                    finalCTOLatLngs.push({ lat: pt[1], lng: pt[0] });
-                }
-            } else {
-                // Fallback boundary grid
-                const lineLen = turf.length(polyBoundary, { units: 'kilometers' });
-                for (let i = 0; i < 8; i++) {
-                    const pt = turf.along(polyBoundary, (lineLen / 8) * i, { units: 'kilometers' });
-                    finalCTOLatLngs.push({ lat: pt.geometry.coordinates[1], lng: pt.geometry.coordinates[0] });
-                }
-            }
-
-            // CE position near 1st CTO
-            const cePos = { lat: finalCTOLatLngs[0].lat - 0.0004, lng: finalCTOLatLngs[0].lng - 0.0004 };
-            appState.ceLatLng = cePos;
-
-            // Build sequential cable routing along sidewalk corridors
-            const rawPath = [cePos, ...finalCTOLatLngs];
-            const cablesData = [];
-            
-            const cableStart = parseInt(document.getElementById('cableStartInput').value) || 100;
-            const cluster = document.getElementById('clusterNumInput').value || "1";
-
-            for (let i = 0; i < rawPath.length - 1; i++) {
-                const start = rawPath[i];
-                const end = rawPath[i + 1];
-
-                // Sidewalk offset path calculation
-                const line = turf.lineString([[start.lng, start.lat], [end.lng, end.lat]]);
-                const offsetLine = turf.lineOffset(line, 0.0035, { units: 'kilometers' }); // 3.5m offset
-                const coords = offsetLine.geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
-
-                const distMeters = Math.round(turf.length(offsetLine, { units: 'meters' }));
-
-                cablesData.push({
-                    id: 'cable_' + i,
-                    name: `C${cluster}-${cableStart + i}`,
-                    latlngs: coords,
-                    lengthMeters: distMeters
-                });
-            }
-
-            // Snap CTOs directly to cable line ends
-            const ctosData = finalCTOLatLngs.map((pt, idx) => {
-                const ctoNum = (parseInt(document.getElementById('ctoStartInput').value) || 1) + idx;
-                const paddedNum = String(ctoNum).padStart(3, '0');
-                return {
-                    id: 'cto_' + idx,
-                    name: `CTO ${paddedNum}`,
-                    latlng: pt
-                };
-            });
-
-            // Generate Poles starting P001 at CE
-            const polesData = generatePolesFromLayout(cePos, cablesData, ctosData);
-
-            renderAllLayersFromData(ctosData, cablesData, polesData);
-        }
-
-        function generatePolesFromLayout(cePos, cablesData, ctosData) {
-            const poles = [];
-            let poleCounter = parseInt(document.getElementById('poleStartInput').value) || 1;
-
-            // Pole 1 strictly at CE
-            poles.push({
-                id: 'pole_ce',
-                name: `P${String(poleCounter++).padStart(3, '0')} (CE)`,
-                latlng: cePos
-            });
-
-            // Intermediate poles every 40m along cables & at CTOs
-            cablesData.forEach(cable => {
-                const line = turf.lineString(cable.latlngs.map(l => [l.lng, l.lat]));
-                const len = turf.length(line, { units: 'meters' });
-                const spans = Math.floor(len / 40);
-
-                for (let s = 1; s <= spans; s++) {
-                    const pt = turf.along(line, s * 40, { units: 'meters' });
-                    poles.push({
-                        id: 'pole_' + poles.length,
-                        name: `P${String(poleCounter++).padStart(3, '0')}`,
-                        latlng: { lat: pt.geometry.coordinates[1], lng: pt.geometry.coordinates[0] }
-                    });
-                }
-            });
-
-            // Ensure pole at each CTO
-            ctosData.forEach(cto => {
-                poles.push({
-                    id: 'pole_cto_' + cto.id,
-                    name: `P${String(poleCounter++).padStart(3, '0')} (${cto.name})`,
-                    latlng: cto.latlng
-                });
-            });
-
-            return poles;
-        }
-
-        // --- RENDER & INTERACTIVE LAYERS ---
-        function renderAllLayersFromData(ctosData, cablesData, polesData) {
-            // Clear existing markers & polylines
-            if (appState.ctos) appState.ctos.forEach(c => { if(c.marker) map.removeLayer(c.marker); if(c.circle) map.removeLayer(c.circle); });
-            if (appState.cables) appState.cables.forEach(cb => { if(cb.polyline) map.removeLayer(cb.polyline); });
-            if (appState.poles) appState.poles.forEach(p => { if(p.marker) map.removeLayer(p.marker); });
-            if (appState.ceMarker) map.removeLayer(appState.ceMarker);
-
-            appState.ctos = [];
-            appState.cables = [];
-            appState.poles = [];
-
-            // 1. Render CE
-            if (appState.ceLatLng) {
-                const ceIcon = L.divIcon({
-                    className: 'ce-icon-amber',
-                    html: `<span>CE</span>`,
-                    iconSize: [26, 26]
-                });
-                appState.ceMarker = L.marker([appState.ceLatLng.lat, appState.ceLatLng.lng], { icon: ceIcon, draggable: true }).addTo(map);
-                appState.ceMarker.bindPopup(`<b>${document.getElementById('ceNameInput').value}</b><br>Caja de Empalme OLT`);
-                appState.ceMarker.on('dragend', function(e) {
-                    appState.ceLatLng = e.target.getLatLng();
-                    recalculateNetworkFromDrag();
-                });
-            }
-
-            // 2. Render Cables (Red Line Width 3)
-            cablesData.forEach(cable => {
-                const polyline = L.polyline(cable.latlngs.map(l => [l.lat, l.lng]), {
-                    color: '#ff0000',
-                    weight: 3,
-                    opacity: 0.9
-                }).addTo(map);
-
-                polyline.bindPopup(`<b>Cable: ${cable.name}</b><br>Capacidad: 48 FO<br>Longitud: ${cable.lengthMeters} m`);
-                
-                // Fine Editing: Right click to remove vertex
-                polyline.on('contextmenu', function(e) {
-                    // Context menu for vertex removal
-                });
-
-                appState.cables.push({
-                    id: cable.id,
-                    name: cable.name,
-                    latlngs: cable.latlngs,
-                    lengthMeters: cable.lengthMeters,
-                    polyline: polyline
-                });
-            });
-
-            // 3. Render CTOs (Green Point #aaff00 with black center)
-            ctosData.forEach(cto => {
-                const ctoIcon = L.divIcon({
-                    className: 'cto-icon-green',
-                    html: '',
-                    iconSize: [16, 16]
-                });
-
-                const marker = L.marker([cto.latlng.lat, cto.latlng.lng], { icon: ctoIcon, draggable: true }).addTo(map);
-                
-                // 150m Coverage Radius Overlay
-                const circle = L.circle([cto.latlng.lat, cto.latlng.lng], {
-                    radius: 150,
-                    color: '#10b981',
-                    weight: 1,
-                    dashArray: '4, 4',
-                    fillColor: '#10b981',
-                    fillOpacity: 0.08
-                }).addTo(map);
-
-                marker.bindPopup(`<b>${cto.name}</b><br>Capacidad: 16 Div / Splitter 1:8<br>Cobertura: 150m`);
-
-                marker.on('dragend', function(e) {
-                    saveUndoState();
-                    cto.latlng = e.target.getLatLng();
-                    rerouteCablesForMovedCto(cto);
-                });
-
-                appState.ctos.push({
-                    id: cto.id,
-                    name: cto.name,
-                    latlng: cto.latlng,
-                    marker: marker,
-                    circle: circle
-                });
-            });
-
-            // 4. Render Poles (Brown Point #8b4513)
-            polesData.forEach(pole => {
-                const poleIcon = L.divIcon({
-                    className: 'pole-icon-brown',
-                    html: `P`,
-                    iconSize: [16, 16]
-                });
-
-                const marker = L.marker([pole.latlng.lat, pole.latlng.lng], { icon: poleIcon, draggable: true }).addTo(map);
-                marker.bindPopup(`<b>Poste: ${pole.name}</b><br>Altura: 8 Metros (Madera)<br>Vano Reglamentario: 40m`);
-
-                marker.on('dragend', function(e) {
-                    saveUndoState();
-                    pole.latlng = e.target.getLatLng();
-                });
-
-                appState.poles.push({
-                    id: pole.id,
-                    name: pole.name,
-                    latlng: pole.latlng,
-                    marker: marker
-                });
-            });
-
-            updateMetricsDashboard();
-        }
-
-        // Dynamic Cable Rerouting on CTO Drag
-        function rerouteCablesForMovedCto(movedCto) {
-            // Find connected cable segments and update offset along sidewalk
-            const ctoIdx = appState.ctos.findIndex(c => c.id === movedCto.id);
-            if (ctoIdx !== -1 && appState.cables[ctoIdx]) {
-                const cable = appState.cables[ctoIdx];
-                const newLatLngs = [...cable.latlngs];
-                newLatLngs[newLatLngs.length - 1] = movedCto.latlng;
-                cable.latlngs = newLatLngs;
-                cable.polyline.setLatLngs(newLatLngs.map(l => [l.lat, l.lng]));
-            }
-            recalculatePoles();
-        }
-
-        function recalculateNetworkFromDrag() {
-            if (appState.ctos.length && appState.cables.length) {
-                recalculatePoles();
-            }
-        }
-
-        function recalculatePoles() {
-            const newPoles = generatePolesFromLayout(appState.ceLatLng, appState.cables, appState.ctos);
-            
-            // Remove old pole markers
-            appState.poles.forEach(p => map.removeLayer(p.marker));
-            appState.poles = [];
-
-            newPoles.forEach(pole => {
-                const poleIcon = L.divIcon({
-                    className: 'pole-icon-brown',
-                    html: `P`,
-                    iconSize: [16, 16]
-                });
-                const marker = L.marker([pole.latlng.lat, pole.latlng.lng], { icon: poleIcon, draggable: true }).addTo(map);
-                marker.bindPopup(`<b>Poste: ${pole.name}</b><br>Altura: 8m (Madera)`);
-                appState.poles.push({ id: pole.id, name: pole.name, latlng: pole.latlng, marker: marker });
-            });
-
-            updateMetricsDashboard();
-        }
-
-        function applyCustomNumbering() {
-            saveUndoState();
-            const ctoStart = parseInt(document.getElementById('ctoStartInput').value) || 1;
-            const cableStart = parseInt(document.getElementById('cableStartInput').value) || 100;
-            const poleStart = parseInt(document.getElementById('poleStartInput').value) || 1;
-            const cluster = document.getElementById('clusterNumInput').value || "1";
-            const ceName = document.getElementById('ceNameInput').value || "CE001";
-
-            if (appState.ceMarker) {
-                appState.ceMarker.bindPopup(`<b>${ceName}</b><br>Caja de Empalme OLT`);
-            }
-
-            appState.ctos.forEach((cto, idx) => {
-                cto.name = `CTO ${String(ctoStart + idx).padStart(3, '0')}`;
-                cto.marker.bindPopup(`<b>${cto.name}</b><br>Splitter 1:8`);
-            });
-
-            appState.cables.forEach((cable, idx) => {
-                cable.name = `C${cluster}-${cableStart + idx}`;
-                cable.polyline.bindPopup(`<b>Cable: ${cable.name}</b><br>48 FO - ${cable.lengthMeters} MTS`);
-            });
-
-            let pCount = poleStart;
-            appState.poles.forEach((pole) => {
-                pole.name = `P${String(pCount++).padStart(3, '0')}`;
-                pole.marker.bindPopup(`<b>Poste: ${pole.name}</b><br>8m Madera`);
-            });
-
-            updateMetricsDashboard();
-        }
-
-        function updateMetricsDashboard() {
-            let totalMeters = 0;
-            appState.cables.forEach(c => totalMeters += (c.lengthMeters || 0));
-
-            document.getElementById('statCtoCount').innerText = `${appState.ctos.length} / 8`;
-            document.getElementById('statCableLength').innerText = `${totalMeters} m`;
-            document.getElementById('statPoleCount').innerText = `${appState.poles.length} unidades`;
-            document.getElementById('statMaxCtoDist').innerText = `138 m (≤ 200m)`;
-            document.getElementById('statMaxCoverage').innerText = `100% (≤ 150m)`;
-        }
-
-        // --- EXPORT TO KML (CL 01 EXACT STRUCTURE & SCALE 1.2) ---
-        function exportDesignedKML() {
-            const cluster = document.getElementById('clusterNumInput').value || "1";
-            const clusterFolder = `CL ${String(cluster).padStart(2, '0')}`;
-            const ceName = document.getElementById('ceNameInput').value || "CE001";
-
-            let kml = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-<Document>
-    <name>${clusterFolder}.kml</name>
-    <Style id="ctoStyle">
-        <IconStyle>
-            <color>ff00ffaa</color>
-            <scale>1.2</scale>
-            <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
-        </IconStyle>
-    </Style>
-    <Style id="poleStyle">
-        <IconStyle>
-            <color>ff13458b</color>
-            <scale>1.2</scale>
-            <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
-        </IconStyle>
-    </Style>
-    <Style id="ceStyle">
-        <IconStyle>
-            <color>ff0098ff</color>
-            <scale>1.2</scale>
-            <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
-        </IconStyle>
-    </Style>
-    <Style id="redCable">
-        <LineStyle>
-            <color>ff0000ff</color>
-            <width>3</width>
-        </LineStyle>
-    </Style>
-    <Folder>
-        <name>${clusterFolder}</name>
-        <Folder>
-            <name>CTOS Y CE</name>
-            <Placemark>
-                <name>${ceName}</name>
-                <styleUrl>#ceStyle</styleUrl>
-                <Point><coordinates>${appState.ceLatLng ? appState.ceLatLng.lng : -15.964},${appState.ceLatLng ? appState.ceLatLng.lat : 18.127},0</coordinates></Point>
-            </Placemark>\n`;
-
-            appState.ctos.forEach(cto => {
-                kml += `            <Placemark>
-                <name>${cto.name}</name>
-                <styleUrl>#ctoStyle</styleUrl>
-                <Point><coordinates>${cto.latlng.lng},${cto.latlng.lat},0</coordinates></Point>
-            </Placemark>\n`;
-            });
-
-            kml += `        </Folder>
-        <Folder>
-            <name>POSTES MADERA 8M</name>\n`;
-
-            appState.poles.forEach(pole => {
-                kml += `            <Placemark>
-                <name>${pole.name}</name>
-                <styleUrl>#poleStyle</styleUrl>
-                <Point><coordinates>${pole.latlng.lng},${pole.latlng.lat},0</coordinates></Point>
-            </Placemark>\n`;
-            });
-
-            kml += `        </Folder>
-        <Folder>
-            <name>CABLEADO</name>\n`;
-
-            appState.cables.forEach(cable => {
-                const coordStr = cable.latlngs.map(l => `${l.lng},${l.lat},0`).join(' ');
-                kml += `            <Placemark>
-                <name>${cable.name}</name>
-                <description>48 FO - ${cable.lengthMeters} MTS</description>
-                <styleUrl>#redCable</styleUrl>
-                <LineString>
-                    <tessellate>1</tessellate>
-                    <coordinates>${coordStr}</coordinates>
-                </LineString>
-            </Placemark>\n`;
-            });
-
-            kml += `        </Folder>
-    </Folder>
-</Document>
-</kml>`;
-
-            const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${clusterFolder}.kml`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // --- PMO AUDIT MODAL ---
-        function openPmoAuditModal() {
-            const content = document.getElementById('pmoModalContent');
-            content.innerHTML = `
-                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-3">
-                    <h4 class="font-bold text-emerald-400">1. Estatus Actual del Despliegue</h4>
-                    <p class="text-xs text-slate-300">Despliegue de red FTTH en distrito Tevragh Zeina / Nuakchott. Matriz de 8 CTOs alimentadas en cascada desde la ${document.getElementById('ceNameInput').value}.</p>
-                    
-                    <h4 class="font-bold text-amber-400">2. Análisis Técnico y Balance Óptico GPON (G.984)</h4>
-                    <ul class="text-xs space-y-1 text-slate-300 list-disc pl-4">
-                        <li>Longitud total de cable Feeder/Distribución: <b>${document.getElementById('statCableLength').innerText}</b></li>
-                        <li>Atenuación máxima en última CTO (CTO 008): <b>-20.85 dBm</b> (Margen de seguridad: 7.15 dB).</li>
-                        <li>Fusión de prueba con pérdida &gt; 0.5 dB: <span class="text-red-400 font-bold">0 detectadas (CERO NO ACEPTADOS)</span>.</li>
-                    </ul>
-
-                    <h4 class="font-bold text-indigo-400">3. Acciones Correctivas y Guardarraíles</h4>
-                    <p class="text-xs text-slate-300">Trazado por aceras corregido mediante offset de 3.5m. Postes de 8m numerados desde P001 en CE001.</p>
-                </div>
-            `;
-            document.getElementById('pmoModal').classList.remove('hidden');
-        }
-
-        function closePmoAuditModal() {
-            document.getElementById('pmoModal').classList.add('hidden');
-        }
-
-        function exportPmoReportFrench() {
-            alert("Rapport technique PMO pour l'ARE (Autorité de Régulation de Mauritanie) généré avec succès.");
-        }
-
-        function toggleCableDrawMode() {
-            isDrawingCableMode = !isDrawingCableMode;
-            const btnText = document.getElementById('drawCableBtnText');
-            if (isDrawingCableMode) {
-                btnText.innerText = "Finalizar Cable";
-                document.getElementById('drawCableBtn').classList.replace('bg-slate-700', 'bg-red-600');
-            } else {
-                btnText.innerText = "+ Trazar Cable";
-                document.getElementById('drawCableBtn').classList.replace('bg-red-600', 'bg-slate-700');
-            }
-        }
-
-        function onMapClickForCableDraw(e) {
-            if (!isDrawingCableMode) return;
-            activeDrawCableLatLngs.push(e.latlng);
-            if (!activeDrawPolyline) {
-                activeDrawPolyline = L.polyline(activeDrawCableLatLngs, { color: '#ff0000', weight: 3 }).addTo(map);
-            } else {
-                activeDrawPolyline.setLatLngs(activeDrawCableLatLngs);
-            }
-        }
-
-        function clearAllCables() {
-            saveUndoState();
-            appState.cables.forEach(c => map.removeLayer(c.polyline));
-            appState.cables = [];
-            updateMetricsDashboard();
-        }
-
-        function addNewCtoManual() {
-            saveUndoState();
-            const center = map.getCenter();
-            const newId = 'cto_' + Date.now();
-            const ctoName = `CTO ${String(appState.ctos.length + 1).padStart(3, '0')}`;
-            
-            const ctoIcon = L.divIcon({ className: 'cto-icon-green', html: '', iconSize: [16, 16] });
-            const marker = L.marker(center, { icon: ctoIcon, draggable: true }).addTo(map);
-            const circle = L.circle(center, { radius: 150, color: '#10b981', weight: 1, dashArray: '4, 4', fillOpacity: 0.08 }).addTo(map);
-
-            appState.ctos.push({ id: newId, name: ctoName, latlng: center, marker: marker, circle: circle });
-            updateMetricsDashboard();
-        }
-    </script>
+      });
+
+      document.getElementById('btn-clear-map').addEventListener('click', () => {
+        state.cables = [];
+        state.cableRecords = [];
+        state.cePoints = [];
+        state.rawCtoPoints = [];
+        state.ctoRecords = [];
+        state.poles = [];
+        state.isReversed = false;
+        updateReverseUI();
+
+        state.cableLayerGroup.clearLayers();
+        state.poleLayerGroup.clearLayers();
+        renderTables();
+        updateKPIs(0, 0, 0, 0, 180, 0, 0, 0);
+        showNotification("Mapa e inventario de postes/cables/CTOs limpiados.", 'info');
+      });
+    }
+
+    // APPLICATION ENTRY POINT
+    window.onload = function() {
+      initMap();
+      setupEventListeners();
+    };
+  </script>
 </body>
 </html>
